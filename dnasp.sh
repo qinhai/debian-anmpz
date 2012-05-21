@@ -208,6 +208,341 @@ rm /etc/apache2/sites-enabled/000-default
 /etc/init.d/nginx restart
 
 }
+###############change 19:16 2012/5/20 by osiris add proftpd  ###################
+function install_proftpd {
+#################### site a website to manage the FTP ###############
+    check_install wget wget
+	if [ ! -d /var/www ];
+        then
+        mkdir /var/www
+	fi
+    if [ -z "$1" ]
+    then
+        die "Usage: `basename $0` dhost <hostname>"
+    fi
+	mkdir "/var/www/$1"
+	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/tz.php
+	mv tz.php index.php
+	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/osiris_sqlite.php
+	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/p.php
+	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/ftpd.db
+
+ 	chown -R www-data "/var/www/$1"
+	chmod -R 775 "/var/www/$1"
+
+# Setting up Nginx mapping
+    cat > "/etc/nginx/conf.d/$1.conf" <<END
+server
+	{
+		listen       80;
+		server_name $1;
+		index index.html index.htm index.php default.html default.htm default.php;
+		root  /var/www/$1;
+
+		location / {
+			try_files \$uri @apache;
+			}
+
+		location @apache {
+			internal;
+			proxy_pass http://127.0.0.1:168;
+			include proxy.conf;
+			}
+
+		location ~ .*\.(php|php5)?$
+			{
+				proxy_pass http://127.0.0.1:168;
+				include proxy.conf;
+			}
+
+		location ~ .*\.(gif|jpg|jpeg|png|bmp|swf|ico)$
+			{
+				expires      30d;
+			}
+
+		location ~ .*\.(js|css)?$
+			{
+				expires      12h;
+			}
+
+		$al
+	}
+END
+
+
+    invoke-rc.d nginx reload
+	
+	ServerAdmin=""
+	read -p "Please input Administrator Email Address:" ServerAdmin
+	if [ "$ServerAdmin" == "" ]; then
+		echo "Administrator Email Address will set to webmaster@example.com!"
+		ServerAdmin="webmaster@example.com"
+	else
+	echo "==========================="
+	echo Server Administrator Email="$ServerAdmin"
+	echo "==========================="
+	fi
+	cat >/etc/apache2/conf.d/$1.conf<<eof
+<VirtualHost *:168>
+ServerAdmin $ServerAdmin
+php_admin_value open_basedir "/var/www/$1:/tmp/:/var/tmp/:/proc/"
+DocumentRoot /var/www/$1
+ServerName $1
+ErrorLog /var/log/apache2/$1_error.log
+CustomLog /var/log/apache2/$1_access.log combined
+</VirtualHost>
+eof
+/etc/init.d/apache2 restart	
+
+#################### site a website to manage the FTP ###############
+
+
+apt-get -q -y --force-yes install proftpd-basic proftpd-mod-sqlite
+
+	#The index config files.
+	cp /etc/proftpd/proftpd.conf /etc/proftpd/proftpd.conf.old
+	cat > /etc/proftpd/proftpd.conf <<EXNDDQW
+Include /etc/proftpd/modules.conf
+UseIPv6                         off
+IdentLookups                    off
+ServerName                      "Debian"
+ServerType                      standalone
+DeferWelcome                    off
+MultilineRFC2228                on
+DefaultServer                   on
+ShowSymlinks                    on
+TimeoutNoTransfer               600
+TimeoutStalled                  600
+TimeoutIdle                     1200
+DisplayLogin                    welcome.msg
+DisplayChdir                    .message true
+ListOptions                     "-l"
+DenyFilter                      \*.*/
+DefaultRoot                    ~
+Port                            21
+<IfModule mod_dynmasq.c>
+</IfModule>
+MaxInstances                    30
+User                            \${APACHE_RUN_USER}
+Group                           \${APACHE_RUN_GROUP}
+Umask                           022  022
+AllowOverwrite                  on
+TransferLog /var/log/proftpd/xferlog
+SystemLog   /var/log/proftpd/proftpd.log
+<IfModule mod_quotatab.c>
+QuotaEngine off
+</IfModule>
+<IfModule mod_ratio.c>
+Ratios off
+</IfModule>
+<IfModule mod_delay.c>
+DelayEngine on
+</IfModule>
+<IfModule mod_ctrls.c>
+ControlsEngine        off
+ControlsMaxClients    2
+ControlsLog           /var/log/proftpd/controls.log
+ControlsInterval      5
+ControlsSocket        /var/run/proftpd/proftpd.sock
+</IfModule>
+<IfModule mod_ctrls_admin.c>
+AdminControlsEngine off
+</IfModule>
+Include /etc/proftpd/sql.conf
+EXNDDQW
+
+
+	cp /etc/proftpd/sql.conf /etc/proftpd/sql.conf.old
+	cat > /etc/proftpd/sql.conf <<END
+<IfModule mod_sql.c>
+SQLBackend sqlite3
+SQLConnectInfo /var/www/$1/ftpd.db
+SQLAuthTypes Plaintext
+SQLUserInfo users user_name user_passwd uid gid home_dir NULL
+RequireValidShell off
+SQLGroupInfo groups group_name gid members
+SQLAuthenticate users
+SQLMinUserUID 30
+SQLDefaultUID 33
+SQLDefaultGID 33
+</IfModule>
+END
+
+	cp /etc/proftpd/modules.conf /etc/proftpd/modules.conf.old
+	cat > /etc/proftpd/modules.conf <<END
+ModulePath /usr/lib/proftpd
+ModuleControlsACLs insmod,rmmod allow user root
+ModuleControlsACLs lsmod allow user *
+LoadModule mod_ctrls_admin.c
+LoadModule mod_tls.c
+LoadModule mod_sql.c
+LoadModule mod_sql_sqlite.c
+LoadModule mod_radius.c
+LoadModule mod_quotatab.c
+LoadModule mod_quotatab_file.c
+LoadModule mod_quotatab_radius.c
+LoadModule mod_wrap.c
+LoadModule mod_rewrite.c
+LoadModule mod_load.c
+LoadModule mod_ban.c
+LoadModule mod_wrap2.c
+LoadModule mod_wrap2_file.c
+LoadModule mod_dynmasq.c
+LoadModule mod_vroot.c
+LoadModule mod_exec.c
+LoadModule mod_shaper.c
+LoadModule mod_ratio.c
+LoadModule mod_site_misc.c
+LoadModule mod_sftp.c
+LoadModule mod_sftp_pam.c
+LoadModule mod_facl.c
+LoadModule mod_unique_id.c
+LoadModule mod_ifsession.c
+END
+
+
+/etc/init.d/pureftpd  restart
+}
+
+###############change 19:16 2012/5/20 by osiris add proftpd  ###################
+
+
+#install dnate
+function install_dnate {
+	check_install dnate dante-server
+	cat > /etc/dnate.conf <<END
+internal: $1 port = $2
+#internal 表示进口ip设置。这里可以是网卡名，也可以是vps外网ip。port是设置端口，这里端口是1080
+#如 internal: $1 port = $2 也是可以的
+
+external: $1
+#出口ip设置，同理，可以是网卡名，也可以是ip
+
+method: username none
+#认证方式，这里username none表示无需认证
+
+##method: pam
+#另一种认证方式。可以通过相关模块实现mysql认证。这里默认是通过系统用户认证。具体下面再说。
+
+#user.privileged: root
+user.notprivileged: nobody
+#logoutput: stderr
+logoutput: /var/log/danted.log
+#日志
+
+##下面的相关规则，可以不用管
+client pass {
+from: 0.0.0.0/0 to: 0.0.0.0/0
+log: connect disconnect
+}
+pass {
+from: 0.0.0.0/0 to: 0.0.0.0/0 port gt 1023
+command: bind
+log: connect disconnect
+}
+pass {
+from: 0.0.0.0/0 to: 0.0.0.0/0
+command: connect udpassociate
+log: connect disconnect
+}
+pass {
+from: 0.0.0.0/0 to: 0.0.0.0/0
+command: bindreply udpreply
+log: connect error
+}
+block {
+from: 0.0.0.0/0 to: 0.0.0.0/0
+log: connect error
+}
+END
+sed -i "/exit 0/idanted -f /etc/dnate.conf &" /etc/rc.local >> /etc/rc.local
+}
+
+# update time
+
+ function install_uptime {
+	dpkg-reconfigure tzdata
+	check_install ntpdate ntpdate
+	ntpdate time-b.nist.gov
+}
+
+
+function install_snmpd {	
+	if [ $(id -u) != "0" ]; then
+		echo "Error: You must be root to run this script, please use root to install lnmp"
+		exit 1
+	fi
+
+	apt-get -q -y --force-yes install snmpd
+	sed -i s/'^agentAddress  udp:127.0.0.1:161'/'#agentAddress  udp:127.0.0.1:161'/g /etc/snmp/snmpd.conf
+	sed -i s/'#agentAddress udp:161,udp6:[::1]:161'/'agentAddress udp:161,udp6:[::1]:161'/g /etc/snmp/snmpd.conf
+	sed -i s/'# createUser authOnlyUser MD5 "remember to change this password"'/'createUser JianKong MD5 pwosiris'/g /etc/snmp/snmpd.conf
+	sed -i s/'^authOnlyUser'/'JianKong'/g /etc/snmp/snmpd.conf
+	echo "Restarting SNMPD......"
+	/etc/init.d/snmpd restart
+	iptables -A INPUT -i eth0 -p udp -s 60.195.249.83 --dport 161 -j ACCEPT
+	iptables -A INPUT -i eth0 -p udp -s 60.195.252.107 --dport 161 -j ACCEPT
+	iptables -A INPUT -i eth0 -p udp -s 60.195.252.110 --dport 161 -j ACCEPT
+	clear
+}
+
+function install_phost {
+    check_install wget wget
+    if [ -z "$1" ]
+    then
+        die "Usage: `basename $0` wordpress <hostname>"
+    fi
+
+	if [ ! -d /var/www ];
+        then
+        mkdir /var/www
+	fi
+    mkdir "/var/www/$1"
+	useradd -g www-data -d /var/www/$1 -s /sbin/nologin $1
+	chown -R $1:www-data "/var/www/$1"
+	chmod -R 775 "/var/www/$1"
+	passwd $1
+      # Setting up Nginx mapping
+    cat > "/etc/nginx/sites-enabled/$1.conf" <<END
+    server {
+        listen       80;
+	server_name  $1 www.$1;
+	access_log /var/www/$1/access.log;
+	error_log /var/www/$1/error.log;
+
+        location / {
+	    proxy_pass   http://$2;
+	    include proxy.conf;
+	}
+    }
+END
+    /etc/init.d/nginx reload
+}
+
+function install_status {
+    cat > "/etc/nginx/sites-enabled/$1.conf" <<END
+	server
+	{
+	listen  80 default;
+	server_name  $1;
+
+	location / {
+	stub_status on;
+	access_log   off;
+	}
+	}
+END
+    /etc/init.d/nginx reload
+}
+
+function safe_php {
+	sed -i s/'disable_functions ='/'disable_functions = system,exec,passthru,escapeshellcmd,pcntl_exec,shell_exec,set_time_limit,'/g /etc/php5/apache2/php.ini
+	sed -i s/'memory_limit = 128M'/'memory_limit = 32M'/g /etc/php5/apache2/php.ini
+	invoke-rc.d/apache2 restart
+}
+##### end by osiris 10:22 2012/5/21####
+
+
 function install_syslogd {
     # We just need a simple vanilla syslogd. Also there is no need to log to
     # so many files (waste of fd). Just dump them into
@@ -490,8 +825,8 @@ php_admin_value open_basedir "/var/www/$1:/tmp/:/var/tmp/:/proc/"
 DocumentRoot /var/www/$1
 ServerName $1
 </VirtualHost>
-#ErrorLog /var/log/apache2/$1_error.log
-#CustomLog /var/log/apache2/$1_access.log combined
+ErrorLog /var/log/apache2/$1_error.log
+CustomLog /var/log/apache2/$1_access.log combined
 eof
 		
 /etc/init.d/apache2 restart
@@ -636,6 +971,30 @@ php)
 apache)
     install_apache
 	;;
+###start osiris ###
+proftpd)
+    install_proftpd $2
+	;;
+
+phost)
+    install_phost $2 $3
+	;;
+uptime)
+	install_uptime
+	;;
+dnate)
+	install_dnate $2 $3
+	;;
+status)
+    install_status $2
+    ;;
+snmpd)
+    install_snmpd
+    ;;
+safephp)
+	safe_php
+	;;
+###end osiris ###
 system)
 	check_version
     remove_unneeded
@@ -752,7 +1111,7 @@ END
 *)
     echo 'Usage:' `basename $0` '[option]'
     echo 'Available option:'
-    for option in system exim4 nginx php typecho ssh addnginx stable testing dhost vhost httpproxy eaccelerator  apache addapache sshport
+    for option in phost proftpd status snmpd dnate safephp system exim4 nginx php typecho ssh addnginx stable dhost vhost httpproxy eaccelerator  apache addapache sshport
     do
         echo '  -' $option
     done
