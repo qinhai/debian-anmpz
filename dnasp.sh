@@ -227,7 +227,7 @@ function install_proftpd {
 	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/p.php
 	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/ftpd.db
 
- 	chown -R www-data "/var/www/$1"
+ 	chown -R www-data:www-data "/var/www/$1"
 	chmod -R 775 "/var/www/$1"
 
 # Setting up Nginx mapping
@@ -540,7 +540,11 @@ function safe_php {
 	sed -i s/'memory_limit = 128M'/'memory_limit = 32M'/g /etc/php5/apache2/php.ini
 	invoke-rc.d/apache2 restart
 }
-##### end by osiris 10:22 2012/5/21####
+function change_id {
+	chown -R $1:www-data "/var/www/$2"
+	chmod -R 775 "/var/www/$2"	
+}
+##### end by osiris 2:04 2012/5/23####
 
 
 function install_syslogd {
@@ -994,6 +998,9 @@ snmpd)
 safephp)
 	safe_php
 	;;
+change_id)
+	change_id $2 $3
+	;;
 ###end osiris ###
 system)
 	check_version
@@ -1096,6 +1103,7 @@ END
 useradd $2 -s /sbin/nologin
 echo $2:$3 | chpasswd 
     ;;
+
 httpproxy)
     cat > /etc/nginx/sites-enabled/httpproxy.conf <<END
 	server {
@@ -1111,7 +1119,7 @@ END
 *)
     echo 'Usage:' `basename $0` '[option]'
     echo 'Available option:'
-    for option in phost proftpd status snmpd dnate safephp system exim4 nginx php typecho ssh addnginx stable dhost vhost httpproxy eaccelerator  apache addapache sshport
+    for option in phost proftpd status snmpd dnate safephp change_id system exim4 nginx php typecho ssh addnginx stable dhost vhost httpproxy eaccelerator  apache addapache sshport
     do
         echo '  -' $option
     done
