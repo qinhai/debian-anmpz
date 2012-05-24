@@ -504,7 +504,7 @@ function install_phost {
 	chmod -R 775 "/var/www/$1"
 	passwd $1
       # Setting up Nginx mapping
-    cat > "/etc/nginx/sites-enabled/$1.conf" <<END
+    cat > "/etc/nginx/conf.d/$1.conf" <<END
     server {
         listen       80;
 	server_name  $1 www.$1;
@@ -521,7 +521,7 @@ END
 }
 
 function install_status {
-    cat > "/etc/nginx/sites-enabled/$1.conf" <<END
+    cat > "/etc/nginx/conf.d/$1.conf" <<END
 	server
 	{
 	listen  80 default;
@@ -1106,7 +1106,7 @@ echo $2:$3 | chpasswd
     ;;
 
 httpproxy)
-    cat > /etc/nginx/sites-enabled/httpproxy.conf <<END
+    cat > /etc/nginx/conf.d/httpproxy.conf <<END
 	server {
 	listen $2;
 	resolver 8.8.8.8;
