@@ -226,6 +226,7 @@ function install_proftpd {
 	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/osiris_sqlite.php
 	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/p.php
 	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/ftpd.db
+	wget -P "/var/www/$1" http://www.adminer.org/latest.php
 
  	chown -R www-data:www-data "/var/www/$1"
 	chmod -R 775 "/var/www/$1"
