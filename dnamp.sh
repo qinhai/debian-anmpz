@@ -366,11 +366,8 @@ function install_dhost {
         die "Usage: `basename $0` wordpress <hostname>"
     fi
 	mkdir "/var/www/$1"
-    mkdir "/var/www/$1"
-	useradd -g www-data -d /var/www/$1 -s /sbin/nologin $1
-	chown -R $1:www-data "/var/www/$1"
+	chown -R www-data:www-data "/var/www/$1"
 	chmod -R 775 "/var/www/$1"
-	passwd $1
 
 	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/tz.php
 	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/osiris_mysql.php
