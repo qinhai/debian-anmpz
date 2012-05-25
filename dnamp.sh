@@ -831,8 +831,7 @@ function remove_unneeded {
 }
 
 
-function update{
-
+function update {
 cp	/etc/apt/sources.list /etc/apt/sources.list.backup
 cat > /etc/apt/sources.list <<END
 deb http://mirror.peer1.net/debian/ squeeze main
