@@ -231,8 +231,8 @@ Include conf.d/
 Include sites-enabled/
 EXNDDQW
 
-echo "alias rewrite headers expires" | a2enmod
-echo "auth_basic authn_file authz_default authz_groupfile authz_host authz_user autoindex cgi env negotiation status" | a2dismod
+echo "alias authz_host rewrite headers expires" | a2enmod
+echo "auth_basic authn_file authz_default authz_groupfile authz_user autoindex cgi env negotiation status" | a2dismod
 rm /etc/apache2/sites-enabled/000-default
 /etc/init.d/apache2 restart
 /etc/init.d/nginx restart
@@ -839,6 +839,7 @@ deb http://mirror.peer1.net/debian-security/ squeeze/updates main
 deb-src http://mirror.peer1.net/debian-security/ squeeze/updates main
 deb http://nginx.org/packages/debian/ squeeze nginx
 deb-src http://nginx.org/packages/debian/ squeeze nginx
+deb http://debian.froxlor.org squeeze main
 END
     apt-get -q -y update
 	apt-get -y install libc6 perl libdb2 debconf
@@ -848,95 +849,7 @@ END
 
 ###############change 19:16 2012/5/20 by osiris add proftpd  ###################
 function install_proftpd {
-#################### site a website to manage the FTP ###############
-    check_install wget wget
-	if [ ! -d /var/www ];
-        then
-        mkdir /var/www
-	fi
-    if [ -z "$1" ]
-    then
-        die "Usage: `basename $0` dhost <hostname>"
-    fi
-	mkdir "/var/www/$1"
-	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/tz.php
-	mv tz.php index.php
-	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/osiris_sqlite.php
-	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/p.php
-	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/ftpd.db
-	wget -P "/var/www/$1" http://www.adminer.org/latest.php
-
- 	chown -R www-data:www-data "/var/www/$1"
-	chmod -R 775 "/var/www/$1"
-
-# Setting up Nginx mapping
-    cat > "/etc/nginx/conf.d/$1.conf" <<END
-server
-	{
-		listen       80;
-		server_name $1;
-		index index.html index.htm index.php default.html default.htm default.php;
-		root  /var/www/$1;
-
-		location / {
-			try_files \$uri @apache;
-			}
-
-		location @apache {
-			internal;
-			proxy_pass http://127.0.0.1:168;
-			include proxy.conf;
-			}
-
-		location ~ .*\.(php|php5)?$
-			{
-				proxy_pass http://127.0.0.1:168;
-				include proxy.conf;
-			}
-
-		location ~ .*\.(gif|jpg|jpeg|png|bmp|swf|ico)$
-			{
-				expires      30d;
-			}
-
-		location ~ .*\.(js|css)?$
-			{
-				expires      12h;
-			}
-
-		$al
-	}
-END
-
-
-    invoke-rc.d nginx reload
-	
-	ServerAdmin=""
-	read -p "Please input Administrator Email Address:" ServerAdmin
-	if [ "$ServerAdmin" == "" ]; then
-		echo "Administrator Email Address will set to webmaster@example.com!"
-		ServerAdmin="webmaster@example.com"
-	else
-	echo "==========================="
-	echo Server Administrator Email="$ServerAdmin"
-	echo "==========================="
-	fi
-	cat >/etc/apache2/conf.d/$1.conf<<eof
-<VirtualHost *:168>
-ServerAdmin $ServerAdmin
-php_admin_value open_basedir "/var/www/$1:/tmp/:/var/tmp/:/proc/"
-DocumentRoot /var/www/$1
-ServerName $1
-ErrorLog /var/log/apache2/$1_error.log
-CustomLog /var/log/apache2/$1_access.log combined
-</VirtualHost>
-eof
-/etc/init.d/apache2 restart	
-
-#################### site a website to manage the FTP ###############
-
-
-apt-get -q -y --force-yes install proftpd-basic proftpd-mod-sqlite
+apt-get -q -y --force-yes install proftpd-basic proftpd-mod-mysql
 
 	#The index config files.
 	cp /etc/proftpd/proftpd.conf /etc/proftpd/proftpd.conf.old
@@ -990,19 +903,31 @@ AdminControlsEngine off
 Include /etc/proftpd/sql.conf
 EXNDDQW
 
-
+    dbname= proftpd
+    userid=proftpd
+    passwd=`get_password "$userid@mysql"`
+    mysqladmin create "$dbname"
+    echo "GRANT ALL PRIVILEGES ON \`$dbname\`.* TO \`$userid\`@localhost IDENTIFIED BY '$passwd';" | \
+        mysql
+	cat >> "/root/proftpd.mysql.txt" <<END
+[proftpd_myqsl]
+dbname = $dbname
+username = $userid
+password = $passwd
+END
 	cp /etc/proftpd/sql.conf /etc/proftpd/sql.conf.old
 	cat > /etc/proftpd/sql.conf <<END
 <IfModule mod_sql.c>
-SQLBackend sqlite3
-SQLConnectInfo /var/www/$1/ftpd.db
-SQLAuthTypes Plaintext
-SQLUserInfo users user_name user_passwd uid gid home_dir NULL
+SQLBackend     mysql
+SQLEngine on
+SQLAuthenticate on
+SQLAuthTypes Crypt Plaintext
+SQLConnectInfo proftpd@localhost $userid $passwd
+SQLUserInfo users userid passwd uid gid homedir shell
+SQLGroupInfo groups groupname gid members
 RequireValidShell off
-SQLGroupInfo groups group_name gid members
-SQLAuthenticate users
-SQLMinUserUID 30
-SQLDefaultUID 33
+SQLMinUserUID 999
+SQLDefaultUID 1000
 SQLDefaultGID 33
 </IfModule>
 END
@@ -1015,7 +940,7 @@ ModuleControlsACLs lsmod allow user *
 LoadModule mod_ctrls_admin.c
 LoadModule mod_tls.c
 LoadModule mod_sql.c
-LoadModule mod_sql_sqlite.c
+LoadModule mod_sql_mysql.c
 LoadModule mod_radius.c
 LoadModule mod_quotatab.c
 LoadModule mod_quotatab_file.c
@@ -1040,7 +965,7 @@ LoadModule mod_ifsession.c
 END
 
 
-/etc/init.d/pureftpd  restart
+/etc/init.d/proftpd  restart
 }
 
 ###############change 19:16 2012/5/20 by osiris add proftpd  ###################

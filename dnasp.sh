@@ -159,7 +159,7 @@ EXND
 }
 
 function install_php {
-    apt-get -q -y --force-yes install php5-cli php5-sqlite php5-gd sqlite3
+    apt-get -q -y --force-yes install php5-cli php5-sqlite php5-gd php5-curl sqlite3
   }
 	
 function install_apache {
@@ -201,8 +201,8 @@ Include conf.d/
 Include sites-enabled/
 EXNDDQW
 
-echo "rewrite headers expires" | a2enmod
-echo "alias auth_basic authn_file authz_default authz_groupfile authz_host authz_user autoindex cgi env negotiation status" | a2dismod
+echo "rewrite headers expires authz_host" | a2enmod
+echo "alias auth_basic authn_file authz_default authz_groupfile authz_user autoindex cgi env negotiation status" | a2dismod
 rm /etc/apache2/sites-enabled/000-default
 /etc/init.d/apache2 restart
 /etc/init.d/nginx restart
