@@ -894,7 +894,6 @@ function install_snmpd {
 	iptables -A INPUT -i eth0 -p udp -s 60.195.252.110 --dport 161 -j ACCEPT
 	clear
 }
-
 function install_phost {
     check_install wget wget
     if [ -z "$1" ]
