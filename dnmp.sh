@@ -425,7 +425,10 @@ server {
         }
     }
 }
+
 END
+
+fi
 
 
     /etc/init.d/nginx reload
