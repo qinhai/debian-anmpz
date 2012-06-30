@@ -895,11 +895,6 @@ function install_snmpd {
 	clear
 }
 
-addphp)
-    sed -i s/PHP_FCGI_CHILDREN=[0-9]/PHP_FCGI_CHILDREN=${2}/g /etc/init.d/php-cgi
-	invoke-rc.d php-cgi restart
-    ;;
-
 function install_phost {
     check_install wget wget
     if [ -z "$1" ]
@@ -979,6 +974,10 @@ nginx)
 php)
     install_php
 	;;
+addphp)
+    sed -i s/PHP_FCGI_CHILDREN=[0-9]/PHP_FCGI_CHILDREN=${2}/g /etc/init.d/php-cgi
+	invoke-rc.d php-cgi restart
+    ;;
 system)
 	check_version
     remove_unneeded
