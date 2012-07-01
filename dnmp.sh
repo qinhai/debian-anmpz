@@ -425,14 +425,51 @@ server {
         }
     }
 }
-
 END
-
 fi
-
-
     /etc/init.d/nginx reload
 }
+
+# froxlor host creat
+function install_dhost {
+    check_install wget wget
+	if [ ! -d /var/www ];
+        then
+        mkdir /var/www
+	fi
+    if [ -z "$1" ]
+    then
+        die "Usage: `basename $0` wordpress <hostname>"
+    fi
+	mkdir "/var/www/$1"
+	chown -R www-data:www-data "/var/www/$2/$1"
+	chmod -R 775 "/var/www/$2/$1"
+
+	wget -P "/var/www/$2/$1" http://debian-anmpz.googlecode.com/files/tz.php
+	wget -P "/var/www/$2/$1" http://debian-anmpz.googlecode.com/files/osiris_mysql.php
+	wget -P "/var/www/$2/$1" http://debian-anmpz.googlecode.com/files/p.php
+
+
+# Setting up Nginx mapping
+if [ -f /etc/init.d/nginx ]
+then
+    cat > "/etc/nginx/conf.d/$1.conf" <<END
+server {
+    server_name $1 www.$1;
+    root /var/www/$2/$1;
+    include /etc/nginx/fastcgi_php;
+    location / {
+        index index.php;
+        if (!-e \$request_filename) {
+            rewrite ^(.*)$  /index.php last;
+        }
+    }
+}
+END
+fi
+    /etc/init.d/nginx reload
+}
+
 
 function install_typecho {
     check_install wget wget
@@ -684,7 +721,8 @@ deb http://mirror.peer1.net/debian-security/ squeeze/updates main
 deb-src http://mirror.peer1.net/debian-security/ squeeze/updates main
 deb http://nginx.org/packages/debian/ squeeze nginx
 deb-src http://nginx.org/packages/debian/ squeeze nginx
-deb http://debian.froxlor.org squeeze main
+#deb http://packages.dotdeb.org squeeze php5-fpm
+#deb-src http://packages.dotdeb.org squeeze php5-fpm
 END
     apt-get -q -y update
 	apt-get -y install libc6 perl libdb2 debconf
@@ -997,6 +1035,9 @@ typecho)
 dhost)
     install_dhost $2
     ;;
+fhost)
+    install_fhost $2 $3
+    ;;
 vhost)
     install_vhost $2
     ;;
@@ -1070,7 +1111,7 @@ change_id)
 *)
     echo 'Usage:' `basename $0` '[option]'
     echo 'Available option:'
-    for option in phost proftpd vsftpd status snmpd dnate safephp change_id nmp exim4 mysql nginx php wordpress typecho ssh addnginx addphp cn us dhost vhost phost httpproxy eaccelerator sshport phpmyadmin
+    for option in phost proftpd vsftpd status snmpd dnate safephp change_id nmp exim4 mysql nginx php wordpress typecho ssh addnginx addphp cn us dhost fhost vhost phost httpproxy eaccelerator sshport phpmyadmin
     do
         echo '  -' $option
     done
