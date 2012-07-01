@@ -430,6 +430,11 @@ fi
     /etc/init.d/nginx reload
 }
 
+function install_froxlor {
+wget –P "/var/www/$1" http://files.froxlor.org/releases/froxlor-latest.tar.gz
+tar axvf /var/www/$1/froxlor-latest.tar.gz
+}
+
 # froxlor host creat
 function install_fhost {
     check_install wget wget
@@ -441,14 +446,9 @@ function install_fhost {
     then
         die "Usage: `basename $0` wordpress <hostname>"
     fi
-	mkdir "/var/www/$1"
+	mkdir "/var/www/$2/$1"
 	chown -R www-data:www-data "/var/www/$2/$1"
 	chmod -R 775 "/var/www/$2/$1"
-
-	wget -P "/var/www/$2/$1" http://debian-anmpz.googlecode.com/files/tz.php
-	wget -P "/var/www/$2/$1" http://debian-anmpz.googlecode.com/files/osiris_mysql.php
-	wget -P "/var/www/$2/$1" http://debian-anmpz.googlecode.com/files/p.php
-
 
 # Setting up Nginx mapping
 if [ -f /etc/init.d/nginx ]
@@ -1070,6 +1070,9 @@ wordpress_en)
     ;;
 typecho)
     install_typecho $2
+    ;;
+froxlor)
+    install_froxlor $2
     ;;
 dhost)
     install_dhost $2
