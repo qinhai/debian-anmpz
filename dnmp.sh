@@ -431,7 +431,7 @@ fi
 }
 
 # froxlor host creat
-function install_dhost {
+function install_fhost {
     check_install wget wget
 	if [ ! -d /var/www ];
         then
@@ -470,6 +470,45 @@ fi
     /etc/init.d/nginx reload
 }
 
+# froxlor sigle host creat
+function install_shost {
+    check_install wget wget
+	if [ ! -d /var/www ];
+        then
+        mkdir /var/www
+	fi
+    if [ -z "$1" ]
+    then
+        die "Usage: `basename $0` wordpress <hostname>"
+    fi
+	mkdir "/var/www/$2"
+	chown -R www-data:www-data "/var/www/$2"
+	chmod -R 775 "/var/www/$2"
+
+	wget -P "/var/www/$2" http://debian-anmpz.googlecode.com/files/tz.php
+	wget -P "/var/www/$2" http://debian-anmpz.googlecode.com/files/osiris_mysql.php
+	wget -P "/var/www/$2" http://debian-anmpz.googlecode.com/files/p.php
+
+
+# Setting up Nginx mapping
+if [ -f /etc/init.d/nginx ]
+then
+    cat > "/etc/nginx/conf.d/$1.conf" <<END
+server {
+    server_name $1 www.$1;
+    root /var/www/$2;
+    include /etc/nginx/fastcgi_php;
+    location / {
+        index index.php;
+        if (!-e \$request_filename) {
+            rewrite ^(.*)$  /index.php last;
+        }
+    }
+}
+END
+fi
+    /etc/init.d/nginx reload
+}
 
 function install_typecho {
     check_install wget wget
@@ -1038,6 +1077,9 @@ dhost)
 fhost)
     install_fhost $2 $3
     ;;
+shost)
+    install_shost $2 $3
+    ;;
 vhost)
     install_vhost $2
     ;;
@@ -1111,7 +1153,7 @@ change_id)
 *)
     echo 'Usage:' `basename $0` '[option]'
     echo 'Available option:'
-    for option in phost proftpd vsftpd status snmpd dnate safephp change_id nmp exim4 mysql nginx php wordpress typecho ssh addnginx addphp cn us dhost fhost vhost phost httpproxy eaccelerator sshport phpmyadmin
+    for option in phost proftpd vsftpd status snmpd dnate safephp change_id nmp exim4 mysql nginx php wordpress typecho ssh addnginx addphp cn us dhost fhost shost vhost phost httpproxy eaccelerator sshport phpmyadmin
     do
         echo '  -' $option
     done
