@@ -395,7 +395,6 @@ echo "alias auth_basic authn_file authz_default authz_groupfile authz_host authz
 rm /etc/apache2/sites-enabled/000-default
 /etc/init.d/apache2 restart
 }
-}
 
 function install_pureftpd {
 	apt-get install pure-ftpd-common pure-ftpd-mysql
