@@ -1,5 +1,5 @@
 #!/bin/bash
-#NAMP for 123systems.net Debian 6.0 X86
+#Froxlor for Debian 6.0 X86
 
 function check_install {
     if [ -z "`which "$1" 2>/dev/null`" ]
@@ -147,6 +147,8 @@ END
     chmod 600 ~/.my.cnf
 }
 
+
+# Install Nginx+PHP
 function install_nginx {
     check_install nginx nginx
     
@@ -320,6 +322,115 @@ END
     invoke-rc.d inetutils-syslogd start
 }
 
+function install_apache {
+	mkdir -p /var/www/
+	mkdir -p /var/www/logs/
+	mkdir -p /var/customers/tmp
+	chmod 1777 /var/customers/tmp
+	
+	apt-get -q -y --force-yes install php5-cli php5-mysql php5-gd php5-curl
+	apt-get -q -y --force-yes install libapache2-mod-php5 libapache2-mod-rpaf
+
+	cp /etc/apache2/apache2.conf /etc/apache2/apache2.conf.old
+	cat > /etc/apache2/apache2.conf <<EXNDDQW
+LockFile ${APACHE_LOCK_DIR}/accept.lock
+PidFile ${APACHE_PID_FILE}
+Timeout 300
+KeepAlive On
+MaxKeepAliveRequests 100
+KeepAliveTimeout 15
+<IfModule mpm_prefork_module>
+StartServers       1
+MinSpareServers    1
+MaxSpareServers    5
+MaxClients        10
+    MaxRequestsPerChild   0
+</IfModule>
+<IfModule mpm_worker_module>
+StartServers       1
+MinSpareThreads    1
+MaxSpareThreads    4
+    ThreadLimit          64
+    ThreadsPerChild      25
+MaxClients        10
+    MaxRequestsPerChild   0
+</IfModule>
+<IfModule mpm_event_module>
+StartServers       1
+MaxClients        10
+MinSpareThreads    1
+MaxSpareThreads    4
+    ThreadLimit          64
+    ThreadsPerChild      25
+    MaxRequestsPerChild   0
+</IfModule>
+User ${APACHE_RUN_USER}
+Group ${APACHE_RUN_GROUP}
+AccessFileName .htaccess
+<Files ~ "^\.ht">
+    Order allow,deny
+    Deny from all
+    Satisfy all
+</Files>
+DefaultType text/plain
+HostnameLookups Off
+ErrorLog ${APACHE_LOG_DIR}/error.log
+LogLevel warn
+Include mods-enabled/*.load
+Include mods-enabled/*.conf
+Include httpd.conf
+Include ports.conf
+LogFormat "%v:%p %h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" 209.141.35.207_combined
+LogFormat "%h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" combined
+LogFormat "%h %l %u %t \"%r\" %>s %O" common
+LogFormat "%{Referer}i -> %U" referer
+LogFormat "%{User-agent}i" agent
+Include conf.d/
+Include sites-enabled/*.conf
+EXNDDQW
+
+echo "rewrite headers expires" | a2enmod
+echo "alias auth_basic authn_file authz_default authz_groupfile authz_host authz_user autoindex cgi env negotiation status userdir" | a2dismod
+
+rm /etc/apache2/sites-enabled/000-default
+/etc/init.d/apache2 restart
+}
+}
+
+function install_pureftpd {
+	apt-get install pure-ftpd-common pure-ftpd-mysql
+	cat > /etc/pure-ftpd/db/mysql.conf <<END
+MYSQLServer	localhost
+MYSQLUser       froxlor
+MYSQLPassword   Osiris1+3=/*
+MYSQLDatabase   froxlor
+MYSQLCrypt      any
+
+MYSQLGetPW      SELECT password FROM ftp_users WHERE username="\L" AND login_enabled="y"
+MYSQLGetUID     SELECT uid FROM ftp_users WHERE username="\L" AND login_enabled="y"
+MYSQLGetGID     SELECT gid FROM ftp_users WHERE username="\L" AND login_enabled="y"
+MYSQLGetDir     SELECT homedir FROM ftp_users WHERE username="\L" AND login_enabled="y"
+MySQLGetQTASZ 	SELECT panel_customers.diskspace/1024 AS QuotaSize FROM panel_customers, ftp_users WHERE username = "\L" AND panel_customers.loginname = SUBSTRING_INDEX('\L', 'ftp', 1)
+END
+	cat > /etc/pure-ftpd/conf/MaxIdleTime <<END
+15
+END
+	cat > /etc/pure-ftpd/conf/ChrootEveryone <<END
+yes
+END
+	cat > /etc/pure-ftpd/conf/PAMAuthentication <<END
+no
+END
+	cat > /etc/pure-ftpd/conf/CustomerProof <<END
+1
+END
+	cat > /etc/pure-ftpd/conf/Bind <<END
+21
+END
+	chmod 0640 /etc/pure-ftpd/db/mysql.conf
+	/etc/init.d/pure-ftpd-mysql restart
+}
+
 function install_eaccelerator {
 
 apt-get -y --force-yes install build-essential php5-dev bzip2
@@ -359,42 +470,9 @@ sed -i '2a mkdir /tmp/eaccelerator'  /etc/rc.local
 /etc/init.d/apache2 restart
 }
 
-function install_vhost {
-    check_install wget wget
-    if [ -z "$1" ]
-    then
-        die "Usage: `basename $0` wordpress <hostname>"
-    fi
 
-	if [ ! -d /var/www ];
-        then
-        mkdir /var/www
-	fi
+function install_froxlor_nginx {
 
-	mkdir "/var/www/$1"
- 	chown -R www-data:www-data "/var/www/$1"
-	chmod -R 775 "/var/www/$1"
-
-      # Setting up Nginx mapping
-    cat > "/etc/nginx/conf.d/$1.conf" <<END
-server {
-    server_name $1;
-    root /var/www/$1;
-    location / {
-        index index.html index.htm;
-    }
-}
-END
-    invoke-rc.d nginx reload
-	
-	cat > "/var/www/$1/index.html" <<END
-Hello world!
-		----$2
-END
-    invoke-rc.d nginx reload	
-}
-
-function install_dhost {
     check_install wget wget
 	if [ ! -d /var/www ];
         then
@@ -404,43 +482,58 @@ function install_dhost {
     then
         die "Usage: `basename $0` wordpress <hostname>"
     fi
-	mkdir "/var/www/$1"
-	chown -R www-data:www-data "/var/www/$1"
-	chmod -R 775 "/var/www/$1"
+    wget -P "/var/www/" http://files.froxlor.org/releases/froxlor-latest.tar.gz
+    tar axvf /var/www/froxlor-latest.tar.gz
+	chown -R www-data:www-data "/var/www/froxlor"
+	chmod -R 775 "/var/www/froxlor"
 
-	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/tz.php
-	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/osiris_mysql.php
-	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/p.php
+	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/tz.php
+	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/osiris_mysql.php
+	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/p.php
 
 
 # Setting up Nginx mapping
 if [ -f /etc/init.d/nginx ]
 then
-    cat > "/etc/nginx/conf.d/$1.conf" <<END
+    cat > "/etc/nginx/conf.d/ssl.conf" <<END
 server {
-    server_name $1;
-    root /var/www/$1;
-    include /etc/nginx/fastcgi_php;
+
+    listen       443 default_server;
+    server_name _;
+
+    ssl                  on;
+    ssl_certificate      /etc/nginx/server.crt;
+    ssl_certificate_key  /etc/nginx/server.key;
+
+    ssl_session_timeout  5m;
+
+    ssl_protocols  SSLv2 SSLv3 TLSv1;
+    ssl_ciphers  HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers   on;
+
     location / {
-        index index.php;
-        if (!-e \$request_filename) {
+        root /var/www/froxlor;
+	include /etc/nginx/fastcgi_php;
+        index  index.php index.html index.htm;
+	if (!-e \$request_filename) {
             rewrite ^(.*)$  /index.php last;
         }
     }
 }
 END
+	cd /etc/nginx/
+	openssl genrsa -des3 -out server.key 1024
+	openssl req -new -key server.key -out server.csr
+	cp server.key server.key.bak
+	openssl rsa -in server.key.bak -out server.key
+	openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt
+
+    /etc/init.d/nginx restart
 fi
-    /etc/init.d/nginx reload
 }
 
-function install_froxlor {
-wget -P "/var/www/$1" http://files.froxlor.org/releases/froxlor-latest.tar.gz
-tar axvf /var/www/$1/froxlor-latest.tar.gz
-cp /var/www/$1/p.php /var/www/$1/index.php
-}
+function install_froxlor_apache {
 
-# froxlor host creat
-function install_fhost {
     check_install wget wget
 	if [ ! -d /var/www ];
         then
@@ -450,251 +543,41 @@ function install_fhost {
     then
         die "Usage: `basename $0` wordpress <hostname>"
     fi
-	mkdir "/var/www/$2/$1"
-	chown -R www-data:www-data "/var/www/$2/$1"
-	chmod -R 775 "/var/www/$2/$1"
+    wget -P "/var/www/" http://files.froxlor.org/releases/froxlor-latest.tar.gz
+    tar axvf /var/www/froxlor-latest.tar.gz
+	chown -R www-data:www-data "/var/www/froxlor"
+	chmod -R 775 "/var/www/froxlor"
 
-# Setting up Nginx mapping
-if [ -f /etc/init.d/nginx ]
+	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/tz.php
+	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/osiris_mysql.php
+	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/p.php
+
+if [ -f /etc/init.d/apache2 ]
 then
-    cat > "/etc/nginx/conf.d/$1.conf" <<END
-server {
-    server_name $1 www.$1;
-    root /var/www/$2/$1;
-    include /etc/nginx/fastcgi_php;
-    location / {
-        index index.php;
-        if (!-e \$request_filename) {
-            rewrite ^(.*)$  /index.php last;
-        }
-    }
-}
-END
-fi
-    /etc/init.d/nginx reload
-}
-
-# froxlor sigle host creat
-function install_shost {
-    check_install wget wget
-	if [ ! -d /var/www ];
-        then
-        mkdir /var/www
+	ServerAdmin=""
+	read -p "Please input Administrator Email Address:" ServerAdmin
+	if [ "$ServerAdmin" == "" ]; then
+		echo "Administrator Email Address will set to 06-01@163.com!"
+		ServerAdmin="06-01@163.com"
+	else
+	echo "==========================="
+	echo Server Administrator Email="$ServerAdmin"
+	echo "==========================="
 	fi
-    if [ -z "$1" ]
-    then
-        die "Usage: `basename $0` wordpress <hostname>"
-    fi
-	mkdir "/var/www/$2"
-	chown -R www-data:www-data "/var/www/$2"
-	chmod -R 775 "/var/www/$2"
-
-	wget -P "/var/www/$2" http://debian-anmpz.googlecode.com/files/tz.php
-	wget -P "/var/www/$2" http://debian-anmpz.googlecode.com/files/osiris_mysql.php
-	wget -P "/var/www/$2" http://debian-anmpz.googlecode.com/files/p.php
-
-
-# Setting up Nginx mapping
-if [ -f /etc/init.d/nginx ]
-then
-    cat > "/etc/nginx/conf.d/$1.conf" <<END
-server {
-    server_name $1 www.$1;
-    root /var/www/$2;
-    include /etc/nginx/fastcgi_php;
-    location / {
-        index index.php;
-        if (!-e \$request_filename) {
-            rewrite ^(.*)$  /index.php last;
-        }
-    }
-}
-END
+	cat >/etc/apache2/conf.d/ssl.conf<<eof
+<VirtualHost *:443>
+ServerAdmin $ServerAdmin
+php_admin_value open_basedir "/var/www/froxlor:/tmp/:/var/tmp/:/proc/"
+DocumentRoot /var/www/froxlor
+ServerName *
+ServerAlias www.*
+ErrorLog /var/log/apache2/ssl_error.log
+CustomLog /var/log/apache2/ssl_access.log combined
+</VirtualHost>
+eof
+/etc/init.d/apache2 restart
 fi
-    /etc/init.d/nginx reload
 }
-
-function install_typecho {
-    check_install wget wget
-	if [ ! -d /var/www ];
-        then
-        mkdir /var/www
-	fi
-    if [ -z "$1" ]
-    then
-        die "Usage: `basename $0` wordpress <hostname>"
-    fi
-
-    # Downloading the WordPress' latest and greatest distribution.
-		rm -rf /tmp/build
-    wget -O - "http://typecho.googlecode.com/files/0.8(10.8.15)-release.tar.gz" | \
-        tar zxf - -C /tmp/
-    mv /tmp/build/ "/var/www/$1"
-    rm -rf /tmp/build
- 	chown -R www-data:www-data "/var/www/$1"
-	chmod -R 775 "/var/www/$1"
-
-	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/tz.php
-	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/osiris_mysql.php
-	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/p.php
-
-
-    # Setting up the MySQL database
-    dbname=`echo $1 | tr . _`
-    userid=`get_domain_name $1`
-    # MySQL userid cannot be more than 15 characters long
-    userid="${userid:0:15}"
-    passwd=`get_password "$userid@mysql"`
-
-    mysqladmin create "$dbname"
-    echo "GRANT ALL PRIVILEGES ON \`$dbname\`.* TO \`$userid\`@localhost IDENTIFIED BY '$passwd';" | \
-        mysql
-
-    # Setting up Nginx mapping
-
-    cat > "/etc/nginx/conf.d/$1.conf" <<END
-server {
-    server_name $1;
-    root /var/www/$1;
-    include /etc/nginx/fastcgi_php;
-    location / {
-        index index.php;
-        if (!-e \$request_filename) {
-            rewrite ^(.*)$  /index.php last;
-        }
-    }
-}
-END
-
-cat >> "/root/$1.mysql.txt" <<END
-[wordpress_myqsl]
-dbname = $dbname
-username = $userid
-password = $passwd
-END
-    /etc/init.d/nginx reload
-
-	echo "mysql dataname:" $dbname
-	echo "mysql username:" $userid
-	echo "mysql passwd:" $passwd
-}
-
-function install_wordpress_cn {
-    check_install wget wget
-    if [ -z "$1" ]
-    then
-        die "Usage: `basename $0` wordpress <hostname>"
-    fi
-
-    # Downloading the WordPress' latest and greatest distribution.
-    mkdir /tmp/wordpress.$$
-    wget -O - http://cn.wordpress.org/latest-zh_CN.tar.gz | \
-        tar zxf - -C /tmp/wordpress.$$
-    mv /tmp/wordpress.$$/wordpress "/var/www/$1"
-    rm -rf /tmp/wordpress.$$
-    chown -R www-data "/var/www/$1"
-	chmod -R 755 "/var/www/$1"
-	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/tz.php
-	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/osiris_mysql.php
-
-
-    # Setting up the MySQL database
-    dbname=`echo $1 | tr . _`
-    userid=`get_domain_name $1`
-    # MySQL userid cannot be more than 15 characters long
-    userid="${userid:0:15}"
-    passwd=`get_password "$userid@mysql"`
-    cp "/var/www/$1/wp-config-sample.php" "/var/www/$1/wp-config.php"
-    sed -i "s/database_name_here/$dbname/; s/username_here/$userid/; s/password_here/$passwd/" \
-        "/var/www/$1/wp-config.php"
-	sed -i "31a define(\'WP_CACHE\', true);"  "/var/www/$1/wp-config.php"
-    mysqladmin create "$dbname"
-    echo "GRANT ALL PRIVILEGES ON \`$dbname\`.* TO \`$userid\`@localhost IDENTIFIED BY '$passwd';" | \
-        mysql
-
-    # Setting up Nginx mapping
-    cat > "/etc/nginx/conf.d/$1.conf" <<END
-server {
-    server_name $1;
-    root /var/www/$1;
-    include /etc/nginx/fastcgi_php;
-    location / {
-        index index.php;
-        if (!-e \$request_filename) {
-            rewrite ^(.*)$  /index.php last;
-        }
-    }
-}
-END
-
-cat >> "/root/$1.mysql.txt" <<END
-[wordpress_myqsl]
-dbname = $dbname
-username = $userid
-password = $passwd
-END
-    invoke-rc.d nginx reload
-
-}
-
-
-function install_wordpress_en {
-    check_install wget wget
-    if [ -z "$1" ]
-    then
-        die "Usage: `basename $0` wordpress <hostname>"
-    fi
-
-    # Downloading the WordPress' latest and greatest distribution.
-    mkdir /tmp/wordpress.$$
-    wget -O - http://wordpress.org/latest.tar.gz | \
-        tar zxf - -C /tmp/wordpress.$$
-    mv /tmp/wordpress.$$/wordpress "/var/www/$1"
-    rm -rf /tmp/wordpress.$$
-    chown -R www-data "/var/www/$1"
-	chmod -R 755 "/var/www/$1"
-
-	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/tz.php
-	wget -P "/var/www/$1" http://debian-anmpz.googlecode.com/files/osiris_mysql.php
-
-    # Setting up the MySQL database
-    dbname=`echo $1 | tr . _`
-    userid=`get_domain_name $1`
-    # MySQL userid cannot be more than 15 characters long
-    userid="${userid:0:15}"
-    passwd=`get_password "$userid@mysql"`
-    cp "/var/www/$1/wp-config-sample.php" "/var/www/$1/wp-config.php"
-    sed -i "s/database_name_here/$dbname/; s/username_here/$userid/; s/password_here/$passwd/" \
-        "/var/www/$1/wp-config.php"
-	sed -i "31a define(\'WP_CACHE\', true);"  "/var/www/$1/wp-config.php"
-    mysqladmin create "$dbname"
-    echo "GRANT ALL PRIVILEGES ON \`$dbname\`.* TO \`$userid\`@localhost IDENTIFIED BY '$passwd';" | \
-        mysql
-
-    # Setting up Nginx mapping
-    cat > "/etc/nginx/conf.d/$1.conf" <<END
-server {
-    server_name $1;
-    root /var/www/$1;
-    include /etc/nginx/fastcgi_php;
-    location / {
-        index index.php;
-        if (!-e \$request_filename) {
-            rewrite ^(.*)$  /index.php last;
-        }
-    }
-}
-END
-
-cat >> "/root/$1.mysql.txt" <<END
-[wordpress_myqsl]
-dbname = $dbname
-username = $userid
-password = $passwd
-END
-    invoke-rc.d nginx reload
-}
-
 
 function print_info {
     echo -n -e '\e[1;36m'
@@ -1066,29 +949,8 @@ system)
     install_syslogd
     install_dropbear
     ;;
-wordpress)
-    install_wordpress_cn $2
-    ;;
-wordpress_en)
-    install_wordpress_en $2
-    ;;
-typecho)
-    install_typecho $2
-    ;;
 froxlor)
-    install_froxlor $2
-    ;;
-dhost)
-    install_dhost $2
-    ;;
-fhost)
-    install_fhost $2 $3
-    ;;
-shost)
-    install_shost $2 $3
-    ;;
-vhost)
-    install_vhost $2
+    install_froxlor
     ;;
 nmp)
 	check_version 
@@ -1101,7 +963,20 @@ nmp)
     install_mysql	
     install_nginx
     install_php
+    install_froxlor_nginx
 		;;
+amp)
+	check_version 
+	remove_unneeded
+	update
+    install_dash
+    install_syslogd
+    install_dropbear
+    install_exim4
+    install_mysql	
+    install_apache
+    install_froxlor_apache
+		;;	
 eaccelerator)
     install_eaccelerator
     ;;
@@ -1110,6 +985,44 @@ addnginx)
 		sed -i s/iGodactgod/$2/g /etc/nginx/nginx.conf
 		invoke-rc.d nginx restart
 		;;
+
+addapache)
+cat > /etc/apache2/apache2.conf <<EXNDDQW
+LockFile \${APACHE_LOCK_DIR}/accept.lock
+PidFile \${APACHE_PID_FILE}
+Timeout 300
+KeepAlive On
+MaxKeepAliveRequests 100
+KeepAliveTimeout 15
+<IfModule mpm_prefork_module>
+    StartServers          $2
+    MinSpareServers       2
+    MaxSpareServers       3
+    MaxClients            $3
+    MaxRequestsPerChild   10000
+</IfModule>
+User \${APACHE_RUN_USER}
+Group \${APACHE_RUN_GROUP}
+AccessFileName .htaccess
+DefaultType text/plain
+HostnameLookups Off
+ErrorLog \${APACHE_LOG_DIR}/error.log
+LogLevel warn
+Include mods-enabled/*.load
+Include mods-enabled/*.conf
+Include httpd.conf
+Include ports.conf
+LogFormat "%v:%p %h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" vhost_combined
+LogFormat "%h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" combined
+LogFormat "%h %l %u %t \"%r\" %>s %O" common
+LogFormat "%{Referer}i -> %U" referer
+LogFormat "%{User-agent}i" agent
+Include conf.d/
+Include sites-enabled/
+EXNDDQW
+/etc/init.d/apache2 restart
+;;
+
 ssh)
     cat >> /etc/shells <<END
 /sbin/nologin
@@ -1135,9 +1048,10 @@ proftpd)
     install_proftpd $2
 	;;
 
-phost)
-    install_phost $2 $3
+pureftpd)
+    install_pureftpd $2
 	;;
+
 uptime)
 	install_uptime
 	;;
@@ -1152,9 +1066,6 @@ snmpd)
     ;;
 safephp)
 	safe_php
-	;;
-change_id)
-	change_id $2 $3
 	;;
 ###end osiris ###
 *)
