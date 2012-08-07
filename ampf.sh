@@ -174,60 +174,37 @@ function install_apache {
 
 	cp /etc/apache2/apache2.conf /etc/apache2/apache2.conf.old
 	cat > /etc/apache2/apache2.conf <<EXNDDQW
-LockFile ${APACHE_LOCK_DIR}/accept.lock
-PidFile ${APACHE_PID_FILE}
+LockFile \${APACHE_LOCK_DIR}/accept.lock
+PidFile \${APACHE_PID_FILE}
 Timeout 300
 KeepAlive On
 MaxKeepAliveRequests 100
 KeepAliveTimeout 15
 <IfModule mpm_prefork_module>
-StartServers       1
-MinSpareServers    1
-MaxSpareServers    3
-MaxClients        10
-    MaxRequestsPerChild   0
+    StartServers          1
+    MinSpareServers       2
+    MaxSpareServers       2
+    MaxClients            3
+    MaxRequestsPerChild   10000
 </IfModule>
-<IfModule mpm_worker_module>
-StartServers       1
-MinSpareThreads    1
-MaxSpareThreads    4
-    ThreadLimit          64
-    ThreadsPerChild      25
-MaxClients        10
-    MaxRequestsPerChild   0
-</IfModule>
-<IfModule mpm_event_module>
-StartServers       1
-MaxClients        10
-MinSpareThreads    1
-MaxSpareThreads    4
-    ThreadLimit          64
-    ThreadsPerChild      25
-    MaxRequestsPerChild   0
-</IfModule>
-User ${APACHE_RUN_USER}
-Group ${APACHE_RUN_GROUP}
+User \${APACHE_RUN_USER}
+Group \${APACHE_RUN_GROUP}
 AccessFileName .htaccess
-<Files ~ "^\.ht">
-    Order allow,deny
-    Deny from all
-    Satisfy all
-</Files>
 DefaultType text/plain
 HostnameLookups Off
-ErrorLog ${APACHE_LOG_DIR}/error.log
+ErrorLog \${APACHE_LOG_DIR}/error.log
 LogLevel warn
 Include mods-enabled/*.load
 Include mods-enabled/*.conf
 Include httpd.conf
 Include ports.conf
-LogFormat "%v:%p %h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" 209.141.35.207_combined
+LogFormat "%v:%p %h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" vhost_combined
 LogFormat "%h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" combined
 LogFormat "%h %l %u %t \"%r\" %>s %O" common
 LogFormat "%{Referer}i -> %U" referer
 LogFormat "%{User-agent}i" agent
 Include conf.d/
-Include sites-enabled/*.conf
+Include sites-enabled/
 EXNDDQW
 
 echo "rewrite headers expires ssl" | a2enmod
