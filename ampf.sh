@@ -77,35 +77,6 @@ function install_dash {
     ln -s dash /bin/sh
 }
 
-function install_dropbear {
-    check_install dropbear dropbear
-    check_install /usr/sbin/xinetd xinetd
-
-    # Disable SSH
-    touch /etc/ssh/sshd_not_to_be_run
-    invoke-rc.d ssh stop
-
-    # Enable dropbear to start. We are going to use xinetd as it is just
-    # easier to configure and might be used for other things.
-    cat > /etc/xinetd.d/dropbear <<END
-service dropbear
-{
-socket_type = stream
-only_from = 0.0.0.0
-wait = no
-user = root
-protocol = tcp
-server = /usr/sbin/dropbear
-server_args = -i
-disable = no
-port = 22
-type = unlisted
-}
-END
-
-    invoke-rc.d xinetd restart
-}
-
 function install_exim4 {
     check_install mail exim4
     if [ -f /etc/exim4/update-exim4.conf.conf ]
@@ -148,137 +119,7 @@ END
 }
 
 
-# Install Nginx+PHP
-function install_nginx {
-    check_install nginx nginx
-    
-    # Need to increase the bucket size for Debian 5.
-	if [ ! -d /etc/nginx ];
-        then
-        mkdir /etc/nginx
-	fi
-	if [ ! -d /etc/nginx/conf.d ];
-        then
-        mkdir /etc/nginx/conf.d
-	fi
-    cat > /etc/nginx/conf.d/actgod.conf <<END
-client_max_body_size 20m;
-server_names_hash_bucket_size 64;
-END
-    sed -i s/'^worker_processes [0-9];'/'worker_processes 1;'/g /etc/nginx/nginx.conf
-	invoke-rc.d nginx restart
-	if [ ! -d /var/www ];
-        then
-        mkdir /var/www
-	fi
-	cat > /etc/nginx/proxy.conf <<EXND
-proxy_connect_timeout 30s;
-proxy_send_timeout   90;
-proxy_read_timeout   90;
-proxy_buffer_size    32k;
-proxy_buffers     4 32k;
-proxy_busy_buffers_size 64k;
-proxy_redirect     off;
-proxy_hide_header  Vary;
-proxy_set_header   Accept-Encoding '';
-proxy_set_header   Host   \$host;
-proxy_set_header   Referer \$http_referer;
-proxy_set_header   Cookie \$http_cookie;
-proxy_set_header   X-Real-IP  \$remote_addr;
-proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
-EXND
-	#add by osiris change shn
-	cat >> /etc/profile <<END
-ulimit -SHn 65535
-END
-}
 
-function install_php {
-    check_install php-cgi php5-cgi php5-cli php5-mysql php5-gd php5-curl
-    cat > /etc/init.d/php-cgi <<END
-#!/bin/bash
-### BEGIN INIT INFO
-# Provides:          php-cgi
-# Required-Start:    networking
-# Required-Stop:     networking
-# Default-Start:     2 3 4 5
-# Default-Stop:      0 1 6
-# Short-Description: Start the PHP FastCGI processes web server.
-### END INIT INFO
-
-PATH=/sbin:/bin:/usr/sbin:/usr/bin
-NAME="php-cgi"
-DESC="php-cgi"
-PIDFILE="/var/run/www/php.pid"
-FCGIPROGRAM="/usr/bin/php-cgi"
-FCGISOCKET="/var/run/www/php.sock"
-FCGIUSER="www-data"
-FCGIGROUP="www-data"
-
-if [ -e /etc/default/php-cgi ]
-then
-    source /etc/default/php-cgi
-fi
-
-[ -z "\$PHP_FCGI_CHILDREN" ] && PHP_FCGI_CHILDREN=2
-[ -z "\$PHP_FCGI_MAX_REQUESTS" ] && PHP_FCGI_MAX_REQUESTS=5000
-
-ALLOWED_ENV="PATH USER PHP_FCGI_CHILDREN PHP_FCGI_MAX_REQUESTS FCGI_WEB_SERVER_ADDRS"
-
-set -e
-
-. /lib/lsb/init-functions
-
-case "\$1" in
-start)
-    unset E
-    for i in \${ALLOWED_ENV}; do
-        E="\${E} \${i}=\${!i}"
-    done
-    log_daemon_msg "Starting \$DESC" \$NAME
-    env - \${E} start-stop-daemon --start -x \$FCGIPROGRAM -p \$PIDFILE \\
-        -c \$FCGIUSER:\$FCGIGROUP -b -m -- -b \$FCGISOCKET
-    log_end_msg 0
-    ;;
-stop)
-    log_daemon_msg "Stopping \$DESC" \$NAME
-    if start-stop-daemon --quiet --stop --oknodo --retry 30 \\
-        --pidfile \$PIDFILE --exec \$FCGIPROGRAM
-    then
-        rm -f \$PIDFILE
-        log_end_msg 0
-    else
-        log_end_msg 1
-    fi
-    ;;
-restart|force-reload)
-    \$0 stop
-    sleep 1
-    \$0 start
-    ;;
-*)
-    echo "Usage: \$0 {start|stop|restart|force-reload}" >&2
-    exit 1
-    ;;
-esac
-exit 0
-END
-    chmod 755 /etc/init.d/php-cgi
-    mkdir -p /var/run/www
-    chown www-data:www-data /var/run/www
-
-    cat > /etc/nginx/fastcgi_php <<END
-location ~ \.php$ {
-    include /etc/nginx/fastcgi_params;
-
-    fastcgi_index index.php;
-    fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
-    fastcgi_pass unix:/var/run/www/php.sock;
-}
-END
-    update-rc.d php-cgi defaults
-    invoke-rc.d php-cgi start
-  }
 
 function install_syslogd {
     # We just need a simple vanilla syslogd. Also there is no need to log to
@@ -469,64 +310,6 @@ sed -i '2a mkdir /tmp/eaccelerator'  /etc/rc.local
 /etc/init.d/apache2 restart
 }
 
-
-function install_froxlor_nginx {
-
-    check_install wget wget
-	if [ ! -d /var/www ];
-        then
-        mkdir /var/www
-	fi
-    wget -P "/var/www/" http://files.froxlor.org/releases/froxlor-latest.tar.gz
-    tar axvf /var/www/froxlor-latest.tar.gz -C /var/www/
-	chown -R www-data:www-data "/var/www/froxlor"
-	chmod -R 775 "/var/www/froxlor"
-
-	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/tz.php
-	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/osiris_mysql.php
-	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/p.php
-
-
-# Setting up Nginx mapping
-if [ -f /etc/init.d/nginx ]
-then
-    cat > "/etc/nginx/conf.d/ssl.conf" <<END
-server {
-
-    listen       443 default_server;
-    server_name _;
-
-    ssl                  on;
-    ssl_certificate      /etc/nginx/server.crt;
-    ssl_certificate_key  /etc/nginx/server.key;
-
-    ssl_session_timeout  5m;
-
-    ssl_protocols  SSLv2 SSLv3 TLSv1;
-    ssl_ciphers  HIGH:!aNULL:!MD5;
-    ssl_prefer_server_ciphers   on;
-
-    location / {
-        root /var/www/froxlor;
-	include /etc/nginx/fastcgi_php;
-        index  index.php index.html index.htm;
-	if (!-e \$request_filename) {
-            rewrite ^(.*)$  /index.php last;
-        }
-    }
-}
-END
-	cd /etc/nginx/
-	openssl genrsa -des3 -out server.key 1024
-	openssl req -new -key server.key -out server.csr
-	cp server.key server.key.bak
-	openssl rsa -in server.key.bak -out server.key
-	openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt
-
-    /etc/init.d/nginx restart
-fi
-}
-
 function install_froxlor_apache {
 
     check_install wget wget
@@ -647,129 +430,6 @@ END
     #~ apt-get -q -y upgrade
 }
 
-###############change 19:16 2012/5/20 by osiris add proftpd  ###################
-function install_proftpd {
-apt-get -q -y --force-yes install proftpd-basic proftpd-mod-mysql
-
-	#The index config files.
-	cp /etc/proftpd/proftpd.conf /etc/proftpd/proftpd.conf.old
-	cat > /etc/proftpd/proftpd.conf <<EXNDDQW
-Include /etc/proftpd/modules.conf
-UseIPv6                         off
-IdentLookups                    off
-ServerName                      "Debian"
-ServerType                      standalone
-DeferWelcome                    off
-MultilineRFC2228                on
-DefaultServer                   on
-ShowSymlinks                    on
-TimeoutNoTransfer               600
-TimeoutStalled                  600
-TimeoutIdle                     1200
-DisplayLogin                    welcome.msg
-DisplayChdir                    .message true
-ListOptions                     "-l"
-DenyFilter                      \*.*/
-DefaultRoot                    ~
-Port                            21
-<IfModule mod_dynmasq.c>
-</IfModule>
-MaxInstances                    30
-User                            \${APACHE_RUN_USER}
-Group                           \${APACHE_RUN_GROUP}
-Umask                           022  022
-AllowOverwrite                  on
-TransferLog /var/log/proftpd/xferlog
-SystemLog   /var/log/proftpd/proftpd.log
-<IfModule mod_quotatab.c>
-QuotaEngine off
-</IfModule>
-<IfModule mod_ratio.c>
-Ratios off
-</IfModule>
-<IfModule mod_delay.c>
-DelayEngine on
-</IfModule>
-<IfModule mod_ctrls.c>
-ControlsEngine        off
-ControlsMaxClients    2
-ControlsLog           /var/log/proftpd/controls.log
-ControlsInterval      5
-ControlsSocket        /var/run/proftpd/proftpd.sock
-</IfModule>
-<IfModule mod_ctrls_admin.c>
-AdminControlsEngine off
-</IfModule>
-Include /etc/proftpd/sql.conf
-EXNDDQW
-
-    dbname= proftpd
-    userid=proftpd
-    passwd=`get_password "$userid@mysql"`
-    mysqladmin create "$dbname"
-    echo "GRANT ALL PRIVILEGES ON \`$dbname\`.* TO \`$userid\`@localhost IDENTIFIED BY '$passwd';" | \
-        mysql
-	cat >> "/root/proftpd.mysql.txt" <<END
-[proftpd_myqsl]
-dbname = $dbname
-username = $userid
-password = $passwd
-END
-	cp /etc/proftpd/sql.conf /etc/proftpd/sql.conf.old
-	cat > /etc/proftpd/sql.conf <<END
-<IfModule mod_sql.c>
-SQLBackend     mysql
-SQLEngine on
-SQLAuthenticate on
-SQLAuthTypes Crypt Plaintext
-SQLConnectInfo proftpd@localhost $userid $passwd
-SQLUserInfo users userid passwd uid gid homedir shell
-SQLGroupInfo groups groupname gid members
-RequireValidShell off
-SQLMinUserUID 999
-SQLDefaultUID 1000
-SQLDefaultGID 33
-</IfModule>
-END
-
-	cp /etc/proftpd/modules.conf /etc/proftpd/modules.conf.old
-	cat > /etc/proftpd/modules.conf <<END
-ModulePath /usr/lib/proftpd
-ModuleControlsACLs insmod,rmmod allow user root
-ModuleControlsACLs lsmod allow user *
-LoadModule mod_ctrls_admin.c
-LoadModule mod_tls.c
-LoadModule mod_sql.c
-LoadModule mod_sql_mysql.c
-LoadModule mod_radius.c
-LoadModule mod_quotatab.c
-LoadModule mod_quotatab_file.c
-LoadModule mod_quotatab_radius.c
-LoadModule mod_wrap.c
-LoadModule mod_rewrite.c
-LoadModule mod_load.c
-LoadModule mod_ban.c
-LoadModule mod_wrap2.c
-LoadModule mod_wrap2_file.c
-LoadModule mod_dynmasq.c
-LoadModule mod_vroot.c
-LoadModule mod_exec.c
-LoadModule mod_shaper.c
-LoadModule mod_ratio.c
-LoadModule mod_site_misc.c
-LoadModule mod_sftp.c
-LoadModule mod_sftp_pam.c
-LoadModule mod_facl.c
-LoadModule mod_unique_id.c
-LoadModule mod_ifsession.c
-END
-
-
-/etc/init.d/proftpd  restart
-}
-
-###############change 19:16 2012/5/20 by osiris add proftpd  ###################
-
 
 #install dnate
 function install_dnate {
@@ -849,38 +509,6 @@ function install_snmpd {
 	iptables -A INPUT -i eth0 -p udp -s 60.195.252.110 --dport 161 -j ACCEPT
 	clear
 }
-function install_phost {
-    check_install wget wget
-    if [ -z "$1" ]
-    then
-        die "Usage: `basename $0` wordpress <hostname>"
-    fi
-
-	if [ ! -d /var/www ];
-        then
-        mkdir /var/www
-	fi
-    mkdir "/var/www/$1"
-	useradd -g www-data -d /var/www/$1 -s /sbin/nologin $1
-	chown -R $1:www-data "/var/www/$1"
-	chmod -R 775 "/var/www/$1"
-	passwd $1
-      # Setting up Nginx mapping
-    cat > "/etc/nginx/conf.d/$1.conf" <<END
-    server {
-        listen       80;
-	server_name  $1 www.$1;
-	access_log /var/www/$1/access.log;
-	error_log /var/www/$1/error.log;
-
-        location / {
-	    proxy_pass   http://$2;
-	    include proxy.conf;
-	}
-    }
-END
-    /etc/init.d/nginx reload
-}
 
 function install_status {
     cat > "/etc/nginx/conf.d/$1.conf" <<END
@@ -922,60 +550,31 @@ exim4)
 mysql)
     install_mysql
 	;;
-nginx)
-    install_nginx
-	;;
-php)
-    install_php
-	;;
-addphp)
-    sed -i s/PHP_FCGI_CHILDREN=[0-9]/PHP_FCGI_CHILDREN=${2}/g /etc/init.d/php-cgi
-	invoke-rc.d php-cgi restart
-    ;;
+
 system)
-	check_version
+    check_version
     remove_unneeded
-	update
+    update
     install_dash
     install_syslogd
-    install_dropbear
     ;;
 froxlor)
-    install_froxlor_nginx
+    install_froxlor_apache
     ;;
-nmp)
-	check_version 
-	remove_unneeded
-	update
-    install_dash
-    install_syslogd
-    install_dropbear
-    install_exim4
-    install_mysql	
-    install_nginx
-    install_php
-    install_froxlor_nginx
-		;;
 amp)
-	check_version 
-	remove_unneeded
-	update
+    check_version 
+    remove_unneeded
+    update
     install_dash
     install_syslogd
-    install_dropbear
     install_exim4
     install_mysql	
     install_apache
     install_froxlor_apache
-		;;	
+		;;
 eaccelerator)
     install_eaccelerator
     ;;
-addnginx)
-    sed -i s/'^worker_processes [0-9];'/'worker_processes iGodactgod;'/g /etc/nginx/nginx.conf
-		sed -i s/iGodactgod/$2/g /etc/nginx/nginx.conf
-		invoke-rc.d nginx restart
-		;;
 
 addapache)
 cat > /etc/apache2/apache2.conf <<EXNDDQW
@@ -1013,31 +612,6 @@ Include sites-enabled/
 EXNDDQW
 /etc/init.d/apache2 restart
 ;;
-
-ssh)
-    cat >> /etc/shells <<END
-/sbin/nologin
-END
-useradd $2 -s /sbin/nologin
-echo $2:$3 | chpasswd 
-    ;;
-httpproxy)
-    cat > /etc/nginx/conf.d/httpproxy.conf <<END
-	server {
-	listen $2;
-	resolver 8.8.8.8;
-	location / {
-	proxy_pass http://\$http_host\$request_uri;
-		}
-	}
-END
-	invoke-rc.d nginx restart
-	;;
-
-###start osiris ###
-proftpd)
-    install_proftpd $2
-	;;
 
 pureftpd)
     install_pureftpd
