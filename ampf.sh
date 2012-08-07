@@ -170,7 +170,7 @@ function install_apache {
 	chmod 1777 /var/customers/tmp
 	
 	apt-get -q -y --force-yes install php5-cli php5-mysql php5-gd php5-curl
-	apt-get -q -y --force-yes install libapache2-mod-php5 libapache2-mod-rpaf
+	apt-get -q -y --force-yes install libapache2-mod-php5 libapache2-mod-rpaf openssl
 
 	cp /etc/apache2/apache2.conf /etc/apache2/apache2.conf.old
 	cat > /etc/apache2/apache2.conf <<EXNDDQW
