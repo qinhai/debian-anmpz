@@ -183,7 +183,7 @@ KeepAliveTimeout 15
 <IfModule mpm_prefork_module>
 StartServers       1
 MinSpareServers    1
-MaxSpareServers    5
+MaxSpareServers    3
 MaxClients        10
     MaxRequestsPerChild   0
 </IfModule>
@@ -230,7 +230,7 @@ Include conf.d/
 Include sites-enabled/*.conf
 EXNDDQW
 
-echo "rewrite headers expires" | a2enmod
+echo "rewrite headers expires ssl" | a2enmod
 echo "alias auth_basic authn_file authz_default authz_groupfile authz_host authz_user autoindex cgi env negotiation status userdir" | a2dismod
 
 rm /etc/apache2/sites-enabled/000-default
@@ -326,6 +326,15 @@ function install_froxlor_apache {
 	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/osiris_mysql.php
 	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/p.php
 
+	#创建Cert
+	mkdir -p /etc/apache2/ssl
+	cd /etc/apache2/ssl
+	openssl genrsa -des3 -out server.key 1024
+	openssl req -new -key server.key -out server.csr
+	cp server.key server.key.bak
+	openssl rsa -in server.key.bak -out server.key
+	openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt
+
 if [ -f /etc/init.d/apache2 ]
 then
 	ServerAdmin=""
@@ -338,19 +347,33 @@ then
 	echo Server Administrator Email="$ServerAdmin"
 	echo "==========================="
 	fi
-	cat >/etc/apache2/conf.d/ssl.conf<<eof
+	    cat > "/etc/apache2/sites-enabled/ssl.conf" <<END
 <VirtualHost *:443>
+SSLEngine On
+SSLCertificateFile /etc/apache2/ssl/server.crt
+SSLCertificateKeyFile /etc/apache2/ssl/server.key
 ServerAdmin $ServerAdmin
-php_admin_value open_basedir "/var/www/froxlor:/tmp/:/var/tmp/:/proc/"
 DocumentRoot /var/www/froxlor
-ServerName *
-ServerAlias www.*
+<Directory />
+Options FollowSymLinks
+AllowOverride None
+</Directory>
+<Directory /var/www/froxlor/>
+Options Indexes FollowSymLinks MultiViews
+AllowOverride None
+Order allow,deny
+allow from all
+</Directory>
 ErrorLog /var/log/apache2/ssl_error.log
+# Possible values include: debug, info, notice, warn, error, crit,
+# alert, emerg.
+LogLevel warn
 CustomLog /var/log/apache2/ssl_access.log combined
 </VirtualHost>
-eof
+END
 /etc/init.d/apache2 restart
 fi
+cd /root
 }
 
 function print_info {
@@ -637,7 +660,7 @@ safephp)
 *)
     echo 'Usage:' `basename $0` '[option]'
     echo 'Available option:'
-    for option in phost proftpd vsftpd status snmpd dnate safephp change_id nmp exim4 mysql nginx php wordpress typecho ssh addnginx addphp cn us dhost fhost shost vhost phost httpproxy eaccelerator sshport phpmyadmin
+    for option in phost proftpd vsftpd status snmpd dnate amp safephp change_id nmp exim4 mysql nginx php wordpress typecho ssh addnginx addphp cn us dhost fhost shost vhost phost httpproxy eaccelerator sshport phpmyadmin
     do
         echo '  -' $option
     done
