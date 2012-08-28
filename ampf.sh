@@ -207,8 +207,8 @@ Include conf.d/
 Include sites-enabled/
 EXNDDQW
 
-echo "rewrite headers expires ssl" | a2enmod
-echo "alias auth_basic authn_file authz_default authz_groupfile authz_host authz_user autoindex cgi env negotiation status userdir" | a2dismod
+echo "alias authz_host rewrite headers expires ssl" | a2enmod
+echo "alias auth_basic authn_file authz_default authz_groupfile  authz_user autoindex cgi env negotiation status userdir" | a2dismod
 
 rm /etc/apache2/sites-enabled/000-default
 /etc/init.d/apache2 restart
