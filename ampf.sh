@@ -207,8 +207,8 @@ Include conf.d/
 Include sites-enabled/
 EXNDDQW
 
-echo "alias authz_host rewrite headers expires ssl" | a2enmod
-echo "alias auth_basic authn_file authz_default authz_groupfile  authz_user autoindex cgi env negotiation status userdir" | a2dismod
+echo "alias authz_host rewrite auth_basic authn_file authz_default authz_groupfile  authz_user headers expires ssl" | a2enmod
+echo "autoindex cgi env negotiation status userdir" | a2dismod
 
 rm /etc/apache2/sites-enabled/000-default
 /etc/init.d/apache2 restart
@@ -302,6 +302,9 @@ function install_froxlor_apache {
 	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/tz.php
 	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/osiris_mysql.php
 	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/p.php
+
+	mkdir -P /var/customers/webs
+	mkdir -P /var/customers/logs
 
 	#创建Cert
 	mkdir -p /etc/apache2/ssl

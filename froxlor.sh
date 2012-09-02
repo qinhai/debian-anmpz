@@ -481,6 +481,9 @@ function install_froxlor_nginx {
     tar axvf /var/www/froxlor-latest.tar.gz -C /var/www/
 	chown -R www-data:www-data "/var/www/froxlor"
 	chmod -R 775 "/var/www/froxlor"
+	
+	mkdir -P /var/customers/webs
+	mkdir -P /var/customers/logs
 
 	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/tz.php
 	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/osiris_mysql.php
