@@ -954,8 +954,8 @@ nmp)
 	remove_unneeded
 	update
     install_dash
-    install_syslogd
-    install_dropbear
+    #install_syslogd
+    #install_dropbear
     install_exim4
     install_mysql	
     install_nginx
