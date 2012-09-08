@@ -489,6 +489,9 @@ function install_froxlor_nginx {
 	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/osiris_mysql.php
 	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/p.php
 
+	rm /var/www/froxlor/scripts/jobs/cron_tasks.php
+	wget -P "/var/www/froxlor/scripts/jobs" http://debian-anmpz.googlecode.com/svn/trunk/cron_tasks.php
+
 
 # Setting up Nginx mapping
 if [ -f /etc/init.d/nginx ]
