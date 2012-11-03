@@ -877,7 +877,7 @@ function install_status {
     cat > "/etc/nginx/conf.d/$1.conf" <<END
 	server
 	{
-	listen  80 default;
+	listen  80;
 	server_name  $1;
 
 	location / {
