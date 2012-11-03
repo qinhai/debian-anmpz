@@ -496,11 +496,21 @@ function install_froxlor_nginx {
 # Setting up Nginx mapping
 if [ -f /etc/init.d/nginx ]
 then
-    cat > "/etc/nginx/conf.d/froxlor.conf" <<END
+    cat > "/etc/nginx/conf.d/ssl.conf" <<END
 server {
 
-    listen       80 default_server;
-    server_name _;    
+    listen       443 default_server;
+    server_name _;
+
+    ssl                  on;
+    ssl_certificate      /etc/nginx/server.crt;
+    ssl_certificate_key  /etc/nginx/server.key;
+
+    ssl_session_timeout  5m;
+
+    ssl_protocols  SSLv2 SSLv3 TLSv1;
+    ssl_ciphers  HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers   on;
 
     location / {
         root /var/www/froxlor;
@@ -512,7 +522,12 @@ server {
     }
 }
 END
-
+	cd /etc/nginx/
+	openssl genrsa -des3 -out server.key 1024
+	openssl req -new -key server.key -out server.csr
+	cp server.key server.key.bak
+	openssl rsa -in server.key.bak -out server.key
+	openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt
 
     /etc/init.d/nginx restart
 fi
