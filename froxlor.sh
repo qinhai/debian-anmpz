@@ -499,7 +499,7 @@ then
     cat > "/etc/nginx/conf.d/froxlor.conf" <<END
 server {
 
-    listen       80 default_server;
+    listen 80 default;
     server_name _;    
 
     location / {
