@@ -513,8 +513,13 @@ server {
 }
 END
 
+cat >> "/var/spool/cron/crontabs/root" <<END
+5/* * * * * php /var/www/froxlor/scripts/froxlor_master_cronjob.php --force
+END
+
 
     /etc/init.d/nginx restart
+    /etc/init.d/cron restart
 fi
 }
 
