@@ -484,6 +484,9 @@ function install_froxlor_nginx {
 	
 	mkdir -P /var/customers/webs
 	mkdir -P /var/customers/logs
+	mkdir -p /var/customers/tmp
+	chmod 755 /var/customers/*
+	chmod 1777 /var/customers/tmp
 
 	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/tz.php
 	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/osiris_mysql.php
