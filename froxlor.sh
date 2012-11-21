@@ -778,6 +778,82 @@ END
 ###############change 19:16 2012/5/20 by osiris add proftpd  ###################
 
 
+###############change on 15:09 2012/11/21  by osiris add libnss ################
+function install_libnss {
+	apt-get install libnss-mysql nscd
+	chmod 600 /etc/nss-mysql.conf /etc/nss-mysql-root.conf
+	cat > /etc/nss-mysql.conf <<END
+conf.version = 2;
+users.host = inet:127.0.0.1:3306;
+users.database = froxlor;
+users.db_user = froxlor;
+users.db_password = Osiris1+3=/*;
+users.table = ftp_users u;
+users.where_clause = u.login_enabled = 'Y';
+users.user_column = u.username;
+users.password_column = u.password;
+users.userid_column = u.customerid;
+users.uid_column = u.uid;
+users.gid_column = u.gid;
+users.realname_column = u.username;
+users.homedir_column = u.homedir;
+users.shell_column = u.shell;
+groups.group_info_table = ftp_groups g;
+groups.where_clause = ;
+groups.group_name_column = g.groupname;
+groups.groupid_column = g.id;
+groups.gid_column = g.gid;
+groups.password_column = "x";
+groups.members_table = ftp_groups ug;
+groups.member_userid_column = ug.customerid;
+groups.member_groupid_column = ug.id;
+END
+	cat > /etc/nss-mysql-root.conf <<END
+conf.version = 2;
+shadow.host = inet:127.0.0.1:3306;
+shadow.database = froxlor;
+shadow.db_user = froxlor;
+shadow.db_password = Osiris1+3=/*;
+shadow.table = ftp_users u;
+shadow.where_clause = ;
+shadow.userid_column = u.customerid;
+shadow.user_column = u.username;
+shadow.password_column = u.password;
+shadow.lastchange_column = FLOOR(UNIX_TIMESTAMP()/86400-1);
+shadow.min_column = 0;
+shadow.max_column = 99999;
+shadow.warn_column = 7;
+shadow.inact_column = -1;
+shadow.expire_column = -1;
+END
+	cat > /etc/nsswitch.conf <<END
+# Make sure that `passwd`, `group` and `shadow` have mysql in their lines 
+# You should place mysql at the end, so that it is queried after the other mechanisams
+#
+passwd:         compat mysql
+group:          compat mysql
+shadow:         compat mysql
+
+hosts:       files dns
+networks:    files dns
+
+services:    db files
+protocols:   db files
+rpc:         db files
+ethers:      db files
+netmasks:    files
+netgroup:    files
+bootparams:  files
+
+automount:   files
+aliases:     files
+END	
+	/etc/init.d/nscd restart
+}
+
+###############End change on 15:09 2012/11/21  by osiris add libnss  ##############
+
+
 #install dnate
 function install_dnate {
 	check_install dnate dante-server
@@ -1049,6 +1125,9 @@ proftpd)
 pureftpd)
     install_pureftpd
 	;;
+libnss)
+    install_libnss
+	;;
 
 uptime)
 	install_uptime
@@ -1069,7 +1148,7 @@ safephp)
 *)
     echo 'Usage:' `basename $0` '[option]'
     echo 'Available option:'
-    for option in phost proftpd vsftpd status snmpd dnate safephp change_id nmp exim4 mysql nginx php wordpress typecho ssh addnginx addphp cn us dhost fhost shost vhost phost httpproxy eaccelerator sshport phpmyadmin
+    for option in phost proftpd vsftpd status libnss snmpd dnate safephp change_id nmp exim4 mysql nginx php wordpress typecho ssh addnginx addphp cn us dhost fhost shost vhost phost httpproxy eaccelerator sshport phpmyadmin
     do
         echo '  -' $option
     done
