@@ -132,7 +132,8 @@ query_cache_size = 0
 skip-innodb
 skip-external-locking
 loose-skip-innodb
-default-storage-engine=MyISAM 
+default-storage-engine=MyISAM
+skip-name-resolve
 END
     invoke-rc.d mysql start
 
@@ -482,8 +483,8 @@ function install_froxlor_nginx {
 	chown -R www-data:www-data "/var/www/froxlor"
 	chmod -R 775 "/var/www/froxlor"
 	
-	mkdir -P /var/customers/webs
-	mkdir -P /var/customers/logs
+	mkdir -p /var/customers/webs
+	mkdir -p /var/customers/logs
 	mkdir -p /var/customers/tmp
 	chmod 755 /var/customers/*
 	chmod 1777 /var/customers/tmp
@@ -517,7 +518,14 @@ server {
 END
 
 cat >> "/var/spool/cron/crontabs/root" <<END
-5/* * * * * php /var/www/froxlor/scripts/froxlor_master_cronjob.php --force
+#
+# Set PATH, otherwise restart-scripts won't find start-stop-daemon
+#
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+#
+# Regular cron jobs for the froxlor package
+#
+*/5 * * * *	root	/usr/bin/php5 -q /var/www/froxlor/scripts/froxlor_master_cronjob.php
 END
 
 
