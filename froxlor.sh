@@ -78,8 +78,8 @@ function install_dash {
 }
 
 function install_dropbear {
-    check_install dropbear dropbear
-    check_install /usr/sbin/xinetd xinetd
+    check_install dropbear dropbear 
+    check_install /usr/sbin/xinetd xinetd unzip
 
     # Disable SSH
     touch /etc/ssh/sshd_not_to_be_run
@@ -165,6 +165,15 @@ function install_nginx {
     cat > /etc/nginx/conf.d/actgod.conf <<END
 client_max_body_size 20m;
 server_names_hash_bucket_size 64;
+
+gzip on;
+gzip_proxied any;
+gzip_min_length  1024;
+gzip_buffers     4 8k;
+gzip_comp_level 3;
+gzip_types       text/plain text/css application/x-javascript application/javascript application/xml;
+gzip_disable     "msie6";
+include /etc/nginx/sites-enabled/*.conf;
 END
     sed -i s/'^worker_processes [0-9];'/'worker_processes 1;'/g /etc/nginx/nginx.conf
 	invoke-rc.d nginx restart
@@ -188,14 +197,52 @@ proxy_set_header   Cookie \$http_cookie;
 proxy_set_header   X-Real-IP  \$remote_addr;
 proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
 EXND
+	mkdir -p /var/cache/nginx
+
+	cat > /etc/nginx/conf.d/fastcgi_cache.conf <<END
+fastcgi_temp_path /var/cache/nginx/ngx_fcgi_tmp;
+fastcgi_cache_path /var/cache/nginx/ngx_fcgi_cache levels=2:2 keys_zone=ngx_fcgi_cache:10m inactive=10s max_size=1g;
+fastcgi_cache_key http://$host$request_uri;
+END
 	#add by osiris change shn
 	cat >> /etc/profile <<END
 ulimit -SHn 65535
 END
 }
 
+function install_zend {
+echo "======================== Zend Optimizer install =================="
+if [ `getconf WORD_BIT` = '32' ] && [ `getconf LONG_BIT` = '64' ] ; then
+        wget -c http://debian-anmpz.googlecode.com/files/ZendGuardLoader-php-5.3-linux-glibc23-x86_64.tar.gz
+        tar zxvf ZendGuardLoader-php-5.3-linux-glibc23-x86_64.tar.gz
+	mkdir -p /usr/local/zend/
+	cp ZendGuardLoader-php-5.3-linux-glibc23-x86_64/php-5.3.x/ZendGuardLoader.so /usr/local/zend/
+	rm -rf ZendGuardLoader-php*
+else
+        wget -c http://debian-anmpz.googlecode.com/files/ZendGuardLoader-php-5.3-linux-glibc23-i386.tar.gz
+	tar zxvf ZendGuardLoader-php-5.3-linux-glibc23-i386.tar.gz
+	mkdir -p /usr/local/zend/
+	cp ZendGuardLoader-php-5.3-linux-glibc23-i386/php-5.3.x/ZendGuardLoader.so /usr/local/zend/
+	rm -rf ZendGuardLoader-php*
+fi
+	cat >>/etc/php5/cgi/php.ini<<EOF
+
+;eaccelerator
+
+;ionCube
+
+[Zend Guard Loader]
+zend_extension=/usr/local/zend/ZendGuardLoader.so 
+zend_loader.enable=1
+zend_loader.disable_licensing=0
+zend_loader.obfuscation_level_support=3
+zend_loader.license_path=
+
+EOF
+}
+
 function install_php {
-    check_install php-cgi php5-cgi php5-cli php5-mysql php5-gd php5-curl
+    check_install php-cgi php5-cgi php5-cli php5-mysql php5-gd php5-curl php5-mcrypt
     cat > /etc/init.d/php-cgi <<END
 #!/bin/bash
 ### BEGIN INIT INFO
@@ -326,16 +373,18 @@ END
 function install_apache {
 	mkdir -p /var/www/
 	mkdir -p /var/www/logs/
+	mkdir -p /var/customers/webs
+	mkdir -p /var/customers/logs
 	mkdir -p /var/customers/tmp
 	chmod 1777 /var/customers/tmp
 	
 	apt-get -q -y --force-yes install php5-cli php5-mysql php5-gd php5-curl
-	apt-get -q -y --force-yes install libapache2-mod-php5 libapache2-mod-rpaf
+	apt-get -q -y --force-yes install libapache2-mod-php5 libapache2-mod-rpaf  libapache2-mod-suphp
 
 	cp /etc/apache2/apache2.conf /etc/apache2/apache2.conf.old
 	cat > /etc/apache2/apache2.conf <<EXNDDQW
-LockFile ${APACHE_LOCK_DIR}/accept.lock
-PidFile ${APACHE_PID_FILE}
+LockFile \${APACHE_LOCK_DIR}/accept.lock
+PidFile \${APACHE_PID_FILE}
 Timeout 300
 KeepAlive On
 MaxKeepAliveRequests 100
@@ -365,8 +414,8 @@ MaxSpareThreads    4
     ThreadsPerChild      25
     MaxRequestsPerChild   0
 </IfModule>
-User ${APACHE_RUN_USER}
-Group ${APACHE_RUN_GROUP}
+User \${APACHE_RUN_USER}
+Group \${APACHE_RUN_GROUP}
 AccessFileName .htaccess
 <Files ~ "^\.ht">
     Order allow,deny
@@ -375,7 +424,7 @@ AccessFileName .htaccess
 </Files>
 DefaultType text/plain
 HostnameLookups Off
-ErrorLog ${APACHE_LOG_DIR}/error.log
+ErrorLog \${APACHE_LOG_DIR}/error.log
 LogLevel warn
 Include mods-enabled/*.load
 Include mods-enabled/*.conf
@@ -390,12 +439,93 @@ Include conf.d/
 Include sites-enabled/*.conf
 EXNDDQW
 
-echo "rewrite headers expires" | a2enmod
-echo "alias auth_basic authn_file authz_default authz_groupfile authz_host authz_user autoindex cgi env negotiation status userdir" | a2dismod
+echo "alias authz_host rewrite headers expires suphp  authz_user authn_file" | a2enmod
+echo "auth_basic authz_groupfile autoindex cgi env negotiation status userdir" | a2dismod
 
 rm /etc/apache2/sites-enabled/000-default
 /etc/init.d/apache2 restart
 }
+
+###############install apache and suphp 12:30 2013/2/8############
+function install_apache_suphp {
+	mkdir -p /var/www/
+	mkdir -p /var/www/logs/
+	mkdir -p /var/customers/webs
+	mkdir -p /var/customers/logs
+	mkdir -p /var/customers/tmp
+	chmod 1777 /var/customers/tmp
+
+	apt-get -q -y --force-yes install apache2
+	apt-get -q -y --force-yes install php5-cli php5-mysql php5-gd php5-curl
+	apt-get -q -y --force-yes install libapache2-mod-fcgid libapache2-mod-rpaf  libapache2-mod-suphp
+
+	cp /etc/apache2/apache2.conf /etc/apache2/apache2.conf.old
+	cat > /etc/apache2/apache2.conf <<EXNDDQW
+LockFile \${APACHE_LOCK_DIR}/accept.lock
+PidFile \${APACHE_PID_FILE}
+Timeout 300
+KeepAlive On
+MaxKeepAliveRequests 100
+KeepAliveTimeout 15
+<IfModule mpm_prefork_module>
+StartServers       1
+MinSpareServers    1
+MaxSpareServers    5
+MaxClients        10
+    MaxRequestsPerChild   0
+</IfModule>
+<IfModule mpm_worker_module>
+StartServers       1
+MinSpareThreads    1
+MaxSpareThreads    4
+    ThreadLimit          64
+    ThreadsPerChild      25
+MaxClients        75
+    MaxRequestsPerChild   0
+</IfModule>
+<IfModule mpm_event_module>
+StartServers       1
+MaxClients        10
+MinSpareThreads    1
+MaxSpareThreads    4
+    ThreadLimit          64
+    ThreadsPerChild      25
+    MaxRequestsPerChild   0
+</IfModule>
+User \${APACHE_RUN_USER}
+Group \${APACHE_RUN_GROUP}
+AccessFileName .htaccess
+<Files ~ "^\.ht">
+    Order allow,deny
+    Deny from all
+    Satisfy all
+</Files>
+DefaultType text/plain
+HostnameLookups Off
+ErrorLog \${APACHE_LOG_DIR}/error.log
+LogLevel warn
+Include mods-enabled/*.load
+Include mods-enabled/*.conf
+Include httpd.conf
+Include ports.conf
+LogFormat "%v:%p %h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" 209.141.35.207_combined
+LogFormat "%h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" combined
+LogFormat "%h %l %u %t \"%r\" %>s %O" common
+LogFormat "%{Referer}i -> %U" referer
+LogFormat "%{User-agent}i" agent
+Include conf.d/
+Include sites-enabled/*.conf
+EXNDDQW
+
+sed -i s/'^docroot=\/var\/www:\${HOME}\/public_html'/'docroot=\${HOME}'/g /etc/suphp/suphp.conf
+
+echo "alias authz_host rewrite headers expires suphp  authz_user authn_file" | a2enmod
+echo "auth_basic authz_groupfile autoindex cgi env negotiation status userdir php5" | a2dismod
+
+#rm /etc/apache2/sites-enabled/000-default
+/etc/init.d/apache2 restart
+}
+
 
 function install_pureftpd {
 	apt-get install pure-ftpd-common pure-ftpd-mysql
@@ -482,9 +612,16 @@ function install_froxlor_nginx {
     tar axvf /var/www/froxlor-latest.tar.gz -C /var/www/
 	chown -R www-data:www-data "/var/www/froxlor"
 	chmod -R 775 "/var/www/froxlor"
+
+	mkdir /tmp/fr.$$
+	wget -O - http://linux-bash.googlecode.com/files/phpMyAdmin.tar.gz | \
+        tar zxf - -C /tmp/fr.$$
+	mv /tmp/fr.$$/phpMyAdmin "/var/www/froxlor/phpmyadmin"
+	rm -rf /tmp/fr.$$
 	
 	mkdir -p /var/customers/webs
 	mkdir -p /var/customers/logs
+	mkdir -p /var/customers/backups/
 	mkdir -p /var/customers/tmp
 	chmod 755 /var/customers/*
 	chmod 1777 /var/customers/tmp
@@ -534,6 +671,7 @@ END
 fi
 }
 
+
 function install_froxlor_apache {
 
     check_install wget wget
@@ -543,12 +681,15 @@ function install_froxlor_apache {
 	fi
     wget -P "/var/www/" http://files.froxlor.org/releases/froxlor-latest.tar.gz
     tar axvf /var/www/froxlor-latest.tar.gz -C /var/www/
-	chown -R www-data:www-data "/var/www/froxlor"
-	chmod -R 775 "/var/www/froxlor"
 
 	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/tz.php
 	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/osiris_mysql.php
 	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/p.php
+
+	if [ -d /ect/suphp ];
+	rm /var/www/froxlor/scripts/jobs/cron_tasks.inc.http.10.apache.php
+	wget -P "/var/www/froxlor/scripts/jobs" http://debian-anmpz.googlecode.com/files/cron_tasks.inc.http.10.apache.php
+	fi
 
 if [ -f /etc/init.d/apache2 ]
 then
@@ -562,20 +703,25 @@ then
 	echo Server Administrator Email="$ServerAdmin"
 	echo "==========================="
 	fi
-	cat >/etc/apache2/conf.d/ssl.conf<<eof
-<VirtualHost *:443>
+	cat >/etc/apache2/conf.d/froxlor.conf<<eof
+listen 8080
+<VirtualHost *:8080>
 ServerAdmin $ServerAdmin
-php_admin_value open_basedir "/var/www/froxlor:/tmp/:/var/tmp/:/proc/"
 DocumentRoot /var/www/froxlor
 ServerName *
-ServerAlias www.*
-ErrorLog /var/log/apache2/ssl_error.log
-CustomLog /var/log/apache2/ssl_access.log combined
+ErrorLog /var/log/apache2/froxlor_error.log
+CustomLog /var/log/apache2/froxlor_access.log combined
 </VirtualHost>
 eof
+groupadd -g 100 -o froxlor
+useradd -o -d /var/www/froxlor -u 100 -g 100 -s /bin/sh froxlor
+chown -R froxlor:froxlor /var/www/froxlor
+chmod -R 755 "/var/www/froxlor"
 /etc/init.d/apache2 restart
 fi
 }
+
+
 
 function print_info {
     echo -n -e '\e[1;36m'
@@ -645,13 +791,12 @@ deb http://mirror.peer1.net/debian-security/ squeeze/updates main
 deb-src http://mirror.peer1.net/debian-security/ squeeze/updates main
 deb http://nginx.org/packages/debian/ squeeze nginx
 deb-src http://nginx.org/packages/debian/ squeeze nginx
-#deb http://packages.dotdeb.org squeeze php5-fpm
-#deb-src http://packages.dotdeb.org squeeze php5-fpm
 END
     apt-get -q -y update
 	apt-get -y install libc6 perl libdb2 debconf
 	apt-get -y install apt apt-utils dselect dpkg
     #~ apt-get -q -y upgrade
+ 
 }
 
 ###############change 19:16 2012/5/20 by osiris add proftpd  ###################
@@ -827,7 +972,6 @@ shadow.inact_column = -1;
 shadow.expire_column = -1;
 END
 	cat > /etc/nsswitch.conf <<END
-# Make sure that `passwd`, `group` and `shadow` have mysql in their lines 
 # You should place mysql at the end, so that it is queried after the other mechanisams
 #
 passwd:         compat mysql
@@ -913,6 +1057,11 @@ sed -i "/exit 0/idanted -f /etc/dnate.conf &" /etc/rc.local >> /etc/rc.local
 	ntpdate time-b.nist.gov
 }
 
+function install_quota {
+	sed -i s/'ext3     defaults'/'ext3     defaults,usrquota,grpquota'/g /etc/fstab
+	apt-get install quota quotatool
+}
+
 
 function install_snmpd {	
 	if [ $(id -u) != "0" ]; then
@@ -986,10 +1135,6 @@ function safe_php {
 	sed -i s/'memory_limit = 128M'/'memory_limit = 32M'/g /etc/php5/apache2/php.ini
 	invoke-rc.d/apache2 restart
 }
-function change_id {
-	chown -R $1:www-data "/var/www/$2"
-	chmod -R 775 "/var/www/$2"	
-}
 ##### end by osiris 2:04 2012/5/23####
 
 ########################################################################
@@ -1008,11 +1153,14 @@ mysql)
 nginx)
     install_nginx
 	;;
+apache)
+	install_apache
+	;;
 php)
     install_php
 	;;
 addphp)
-    sed -i s/PHP_FCGI_CHILDREN=[0-9]/PHP_FCGI_CHILDREN=${2}/g /etc/init.d/php-cgi
+    sed -i s/PHP_FCGI_CHILDREN=[0-9]/PHP_FCGI_CHILDREN=\${2}/g /etc/init.d/php-cgi
 	invoke-rc.d php-cgi restart
     ;;
 system)
@@ -1024,7 +1172,7 @@ system)
     install_dropbear
     ;;
 froxlor)
-    install_froxlor_nginx
+    install_froxlor_apache
     ;;
 nmp)
 	check_version 
@@ -1050,7 +1198,23 @@ amp)
     install_mysql	
     install_apache
     install_froxlor_apache
-		;;	
+    install_libnss
+    install_pureftpd
+		;;
+amsuphp)
+	check_version 
+	remove_unneeded
+	update
+    install_dash
+    install_syslogd
+    install_dropbear
+    install_exim4
+    install_mysql	
+    install_apache_suphp
+    install_froxlor_apache
+    install_libnss
+    install_pureftpd
+		;;
 eaccelerator)
     install_eaccelerator
     ;;
@@ -1148,7 +1312,7 @@ safephp)
 *)
     echo 'Usage:' `basename $0` '[option]'
     echo 'Available option:'
-    for option in phost proftpd vsftpd status libnss snmpd dnate safephp change_id nmp exim4 mysql nginx php wordpress typecho ssh addnginx addphp cn us dhost fhost shost vhost phost httpproxy eaccelerator sshport phpmyadmin
+    for option in phost proftpd amsuphp vsftpd apache status libnss snmpd dnate safephp nmp exim4 mysql nginx php wordpress typecho ssh addnginx addphp cn us dhost fhost shost vhost phost httpproxy eaccelerator sshport phpmyadmin
     do
         echo '  -' $option
     done

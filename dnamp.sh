@@ -829,7 +829,7 @@ function remove_unneeded {
 
 
 function update {
-cp	/etc/apt/sources.list /etc/apt/sources.list.backup
+cp /etc/apt/sources.list /etc/apt/sources.list.backup
 cat > /etc/apt/sources.list <<END
 deb http://mirror.peer1.net/debian/ squeeze main
 deb-src http://mirror.peer1.net/debian/ squeeze main
@@ -839,7 +839,6 @@ deb http://mirror.peer1.net/debian-security/ squeeze/updates main
 deb-src http://mirror.peer1.net/debian-security/ squeeze/updates main
 deb http://nginx.org/packages/debian/ squeeze nginx
 deb-src http://nginx.org/packages/debian/ squeeze nginx
-deb http://debian.froxlor.org squeeze main
 END
     apt-get -q -y update
 	apt-get -y install libc6 perl libdb2 debconf
