@@ -720,6 +720,17 @@ chown -R froxlor:froxlor /var/www/froxlor
 chmod -R 755 "/var/www/froxlor"
 /etc/init.d/apache2 restart
 fi
+cat >> "/var/spool/cron/crontabs/root" <<END
+#
+# Set PATH, otherwise restart-scripts won't find start-stop-daemon
+#
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+#
+# Regular cron jobs for the froxlor package
+#
+*/5 * * * *	root	/usr/bin/php5 -q /var/www/froxlor/scripts/froxlor_master_cronjob.php
+END
+    /etc/init.d/cron restart
 }
 
 
