@@ -685,6 +685,9 @@ function install_froxlor_apache {
 	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/tz.php
 	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/osiris_mysql.php
 	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/p.php
+	
+	rm /var/www/froxlor/scripts/jobs/cron_tasks.php
+	wget -P "/var/www/froxlor/scripts/jobs" http://debian-anmpz.googlecode.com/svn/trunk/cron_tasks.php
 
 	if [ -d /etc/suphp ];
 	then
