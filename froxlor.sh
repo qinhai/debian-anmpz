@@ -686,7 +686,7 @@ function install_froxlor_apache {
 	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/osiris_mysql.php
 	wget -P "/var/www/froxlor" http://debian-anmpz.googlecode.com/files/p.php
 
-	if [ -d /ect/suphp ];
+	if [ -d /etc/suphp ];
 	then
 	rm /var/www/froxlor/scripts/jobs/cron_tasks.inc.http.10.apache.php
 	wget -P "/var/www/froxlor/scripts/jobs" http://debian-anmpz.googlecode.com/files/cron_tasks.inc.http.10.apache.php
@@ -714,10 +714,12 @@ ErrorLog /var/log/apache2/froxlor_error.log
 CustomLog /var/log/apache2/froxlor_access.log combined
 </VirtualHost>
 eof
-groupadd -g 100 -o froxlor
-useradd -o -d /var/www/froxlor -u 100 -g 100 -s /bin/sh froxlor
+
+groupadd -g 300 -o froxlor
+useradd -o -d /var/www/froxlor -u 300 -g 300 -s /bin/sh froxlor
 chown -R froxlor:froxlor /var/www/froxlor
 chmod -R 755 "/var/www/froxlor"
+
 /etc/init.d/apache2 restart
 fi
 cat >> "/var/spool/cron/crontabs/root" <<END
@@ -1222,10 +1224,10 @@ amsuphp)
     install_dropbear
     install_exim4
     install_mysql	
-    install_apache_suphp
-    install_froxlor_apache
     install_libnss
     install_pureftpd
+    install_apache_suphp
+    install_froxlor_apache
 		;;
 eaccelerator)
     install_eaccelerator
@@ -1320,11 +1322,15 @@ snmpd)
 safephp)
 	safe_php
 	;;
+fix)
+	/etc/init.d/nscd restart
+	chown -R froxlor:froxlor /var/www/froxlor
+	;;
 ###end osiris ###
 *)
     echo 'Usage:' `basename $0` '[option]'
     echo 'Available option:'
-    for option in phost proftpd amsuphp vsftpd apache status libnss snmpd dnate safephp nmp exim4 mysql nginx php wordpress typecho ssh addnginx addphp cn us dhost fhost shost vhost phost httpproxy eaccelerator sshport phpmyadmin
+    for option in phost fix proftpd amsuphp vsftpd apache status libnss snmpd dnate safephp nmp exim4 mysql nginx php wordpress typecho ssh addnginx addphp cn us dhost fhost shost vhost phost httpproxy eaccelerator sshport phpmyadmin
     do
         echo '  -' $option
     done
