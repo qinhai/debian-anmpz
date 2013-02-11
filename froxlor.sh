@@ -738,6 +738,17 @@ END
     /etc/init.d/cron restart
 }
 
+function iptables {
+	iptables -A OUTPUT -p udp -d 60.195.252.107 -j ACCEPT
+	iptables -A OUTPUT -p udp -d 60.195.252.110 -j ACCEPT	
+	iptables -A OUTPUT -p udp -j DROP
+	#iptables -I INPUT -p tcp --dport 8080 -j DROP 
+	#iptables -I INPUT -s 111.227.231.0/24 -p tcp --dport 8080 -j ACCEPT #允许本地IP访问
+	#iptables -I INPUT -s 69.85.93.0/24 -p tcp --dport 8080 -j ACCEPT #允许我的服务器访问
+	#iptables -I INPUT -s 209.141.35.207 -p tcp --dport 8080 -j ACCEPT #允许我的VPS访问（VPS上有SSH代理）
+	service iptables save
+	service iptables restart
+}
 
 
 function print_info {
@@ -1087,16 +1098,38 @@ function install_snmpd {
 	fi
 
 	apt-get -q -y --force-yes install snmpd
-	sed -i s/'^agentAddress  udp:127.0.0.1:161'/'#agentAddress  udp:127.0.0.1:161'/g /etc/snmp/snmpd.conf
-	sed -i s/'#agentAddress udp:161,udp6:[::1]:161'/'agentAddress udp:161,udp6:[::1]:161'/g /etc/snmp/snmpd.conf
-	sed -i s/'# createUser authOnlyUser MD5 "remember to change this password"'/'createUser JianKong MD5 pwosiris'/g /etc/snmp/snmpd.conf
-	sed -i s/'^authOnlyUser'/'JianKong'/g /etc/snmp/snmpd.conf
+	cp /etc/snmp/snmpd.conf /etc/snmp/snmpd.conf.bak
+
+	cat >/etc/snmp/snmpd.conf <<END
+createUser JianKong MD5 pwosiris
+view   systemonly  included   .1.3.6.1.2.1.1
+view   systemonly  included   .1.3.6.1.2.1.25.1
+rocommunity public  default    -V systemonly
+rouser   JianKong
+sysLocation    Sitting on the Dock of the Bay
+sysContact     Me <me@example.org>
+sysServices    72
+proc  mountd
+proc  ntalkd    4
+proc  sendmail 10 1
+disk       /     10000
+disk       /var  5%
+includeAllDisks  10%
+load   12 10 5
+trapsink     localhost public
+iquerySecName   internalUser
+rouser          internalUser
+defaultMonitors          yes
+linkUpDownNotifications  yes
+extend    test1   /bin/echo  Hello, world!
+extend-sh test2   echo Hello, world! ; echo Hi there ; exit 35
+master          agentx
+END
+
 	echo "Restarting SNMPD......"
 	/etc/init.d/snmpd restart
-	iptables -A INPUT -i eth0 -p udp -s 60.195.249.83 --dport 161 -j ACCEPT
 	iptables -A INPUT -i eth0 -p udp -s 60.195.252.107 --dport 161 -j ACCEPT
 	iptables -A INPUT -i eth0 -p udp -s 60.195.252.110 --dport 161 -j ACCEPT
-	clear
 }
 function install_phost {
     check_install wget wget
