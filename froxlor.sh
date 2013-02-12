@@ -669,6 +669,7 @@ END
     /etc/init.d/nginx restart
     /etc/init.d/cron restart
 fi
+apt-get install webalizer
 }
 
 
@@ -736,6 +737,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 */5 * * * *	root	/usr/bin/php5 -q /var/www/froxlor/scripts/froxlor_master_cronjob.php
 END
     /etc/init.d/cron restart
+
+apt-get install webalizer
 }
 
 function iptables {
@@ -1264,6 +1267,7 @@ amsuphp)
     install_pureftpd
     install_apache_suphp
     install_froxlor_apache
+    install_quota
 		;;
 eaccelerator)
     install_eaccelerator
