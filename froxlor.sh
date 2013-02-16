@@ -439,6 +439,8 @@ Include conf.d/
 Include sites-enabled/*.conf
 EXNDDQW
 
+mv ports.conf ports.conf.bak
+touch ports.conf
 echo "alias authz_host rewrite headers expires suphp  authz_user authn_file" | a2enmod
 echo "auth_basic authz_groupfile autoindex cgi env negotiation status userdir" | a2dismod
 
