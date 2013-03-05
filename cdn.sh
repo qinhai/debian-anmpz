@@ -145,19 +145,6 @@ proxy_set_header   Cookie \$http_cookie;
 proxy_set_header   X-Real-IP  \$remote_addr;
 proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
 EXND
-cat > /etc/nginx/conf.d/cdn.conf <<EXND
-    server {
-        listen       80;
-	server_name  *;
-	access_log /var/www/cdn/access.log;
-	error_log /var/www/cdn/error.log;
-
-        location / {
-	    proxy_pass   http://$1;
-	    include proxy.conf;
-	}
-    }
-EXND
 	#add by osiris change shn
 	cat >> /etc/profile <<END
 ulimit -SHn 65535
@@ -316,6 +303,39 @@ END
     /etc/init.d/nginx reload
 }
 
+function install_phost {
+    check_install wget wget
+    if [ -z "$1" ]
+    then
+        die "Usage: `basename $0` wordpress <hostname>"
+    fi
+
+	if [ ! -d /var/www ];
+        then
+        mkdir /var/www
+	fi
+    mkdir "/var/www/$1"
+	useradd -g www-data -d /var/www/$1 -s /sbin/nologin $1
+	chown -R $1:www-data "/var/www/$1"
+	chmod -R 775 "/var/www/$1"
+	passwd $1
+      # Setting up Nginx mapping
+    cat > "/etc/nginx/conf.d/$1.conf" <<END
+    server {
+        listen       80;
+	server_name  $1 www.$1;
+	access_log /var/www/$1/access.log;
+	error_log /var/www/$1/error.log;
+
+        location / {
+	    proxy_pass   http://$2;
+	    include proxy.conf;
+	}
+    }
+END
+    /etc/init.d/nginx reload
+}
+
 
 ########################################################################
 # START OF PROGRAM
@@ -325,7 +345,7 @@ export PATH=/bin:/usr/bin:/sbin:/usr/sbin
 check_sanity
 case "$1" in
 nginx)
-    install_nginx $2
+    install_nginx
 	;;
 system)
 	check_version
@@ -343,13 +363,16 @@ cdn)
     install_dash
     install_syslogd
     install_dropbear
-    install_nginx $2
+    install_nginx
 		;;
 addnginx)
     sed -i s/'^worker_processes [0-9];'/'worker_processes iGodactgod;'/g /etc/nginx/nginx.conf
 		sed -i s/iGodactgod/$2/g /etc/nginx/nginx.conf
 		invoke-rc.d nginx restart
 		;;
+phost)
+    install_phost $2 $3
+	;;
 status)
     install_status $2
     ;;
@@ -360,7 +383,7 @@ snmpd)
 *)
     echo 'Usage:' `basename $0` '[option]'
     echo 'Available option:'
-    for option in status snmpd addnginx cdn nginx system
+    for option in status snmpd addnginx cdn nginx system phost
     do
         echo '  -' $option
     done
