@@ -323,7 +323,7 @@ function install_phost {
     cat > "/etc/nginx/conf.d/$1.conf" <<END
     server {
         listen       80;
-	server_name  $1 www.$1;
+	server_name  $1 *.$1;
 	access_log /var/www/$1/access.log;
 	error_log /var/www/$1/error.log;
 
