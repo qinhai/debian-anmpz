@@ -120,8 +120,20 @@ function install_nginx {
         mkdir /etc/nginx/conf.d
 	fi
     cat > /etc/nginx/conf.d/actgod.conf <<END
+gzip on;
+gzip_min_length 1k;
+gzip_buffers 4 16k;
+gzip_http_version 1.1;
+gzip_comp_level 2;
+gzip_types text/plain application/x-javascript text/css application/xml;
+gzip_vary on;
+
 client_max_body_size 20m;
 server_names_hash_bucket_size 64;
+
+proxy_temp_path /var/www/proxy_temp_dir;
+proxy_cache_path /var/www/proxy_cache_dir levels=1:2 keys_zone=cache:50m inactive=1d max_size=2g;
+
 END
     sed -i s/'^worker_processes [0-9];'/'worker_processes 1;'/g /etc/nginx/nginx.conf
 	invoke-rc.d nginx restart
@@ -139,11 +151,17 @@ proxy_busy_buffers_size 64k;
 proxy_redirect     off;
 proxy_hide_header  Vary;
 proxy_set_header   Accept-Encoding '';
+#prxoy_cache
+proxy_cache cache;
+proxy_cache_valid 200 304 12h;
+proxy_cache_key $host$uri$is_args$args;
+proxy_cache_lock on;
 proxy_set_header   Host   \$host;
 proxy_set_header   Referer \$http_referer;
 proxy_set_header   Cookie \$http_cookie;
 proxy_set_header   X-Real-IP  \$remote_addr;
 proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
+proxy_next_upstream http_502 http_504 error timeout invalid_header;
 EXND
 	#add by osiris change shn
 	cat >> /etc/profile <<END
@@ -318,7 +336,6 @@ function install_phost {
 	useradd -g www-data -d /var/www/$1 -s /sbin/nologin $1
 	chown -R $1:www-data "/var/www/$1"
 	chmod -R 775 "/var/www/$1"
-	passwd $1
       # Setting up Nginx mapping
     cat > "/etc/nginx/conf.d/$1.conf" <<END
     server {
@@ -330,6 +347,27 @@ function install_phost {
         location / {
 	    proxy_pass   http://$2;
 	    include proxy.conf;
+	    expires 1d;
+	}
+	location ~ .*\.(php|jsp|cgi)?$ {
+		proxy_connect_timeout 30s;
+		proxy_send_timeout   90;
+		proxy_read_timeout   90;
+		proxy_buffer_size    32k;
+		proxy_buffers     4 32k;
+		proxy_busy_buffers_size 64k;
+		proxy_redirect     off;
+		proxy_hide_header  Vary;
+		proxy_set_header   Accept-Encoding '';
+		#prxoy_cache
+		proxy_cache off;
+		proxy_set_header   Host   \$host;
+		proxy_set_header   Referer \$http_referer;
+		proxy_set_header   Cookie \$http_cookie;
+		proxy_set_header   X-Real-IP  \$remote_addr;
+		proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
+		proxy_next_upstream http_502 http_504 error timeout invalid_header;
+		proxy_pass   http://$2;
 	}
     }
 END
