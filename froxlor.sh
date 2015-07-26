@@ -165,15 +165,11 @@ function install_nginx {
     cat > /etc/nginx/conf.d/actgod.conf <<END
 client_max_body_size 20m;
 server_names_hash_bucket_size 64;
-
-gzip on;
 gzip_proxied any;
 gzip_min_length  1024;
 gzip_buffers     4 8k;
 gzip_comp_level 3;
 gzip_types       text/plain text/css application/x-javascript application/javascript application/xml;
-gzip_disable     "msie6";
-include /etc/nginx/sites-enabled/*.conf;
 END
     sed -i s/'^worker_processes [0-9];'/'worker_processes 1;'/g /etc/nginx/nginx.conf
 	invoke-rc.d nginx restart
@@ -242,90 +238,17 @@ EOF
 }
 
 function install_php {
-    check_install php-cgi php5-cgi php5-cli php5-mysql php5-gd php5-curl php5-mcrypt
-    cat > /etc/init.d/php-cgi <<END
-#!/bin/bash
-### BEGIN INIT INFO
-# Provides:          php-cgi
-# Required-Start:    networking
-# Required-Stop:     networking
-# Default-Start:     2 3 4 5
-# Default-Stop:      0 1 6
-# Short-Description: Start the PHP FastCGI processes web server.
-### END INIT INFO
-
-PATH=/sbin:/bin:/usr/sbin:/usr/bin
-NAME="php-cgi"
-DESC="php-cgi"
-PIDFILE="/var/run/www/php.pid"
-FCGIPROGRAM="/usr/bin/php-cgi"
-FCGISOCKET="/var/run/www/php.sock"
-FCGIUSER="www-data"
-FCGIGROUP="www-data"
-
-if [ -e /etc/default/php-cgi ]
-then
-    source /etc/default/php-cgi
-fi
-
-[ -z "\$PHP_FCGI_CHILDREN" ] && PHP_FCGI_CHILDREN=2
-[ -z "\$PHP_FCGI_MAX_REQUESTS" ] && PHP_FCGI_MAX_REQUESTS=5000
-
-ALLOWED_ENV="PATH USER PHP_FCGI_CHILDREN PHP_FCGI_MAX_REQUESTS FCGI_WEB_SERVER_ADDRS"
-
-set -e
-
-. /lib/lsb/init-functions
-
-case "\$1" in
-start)
-    unset E
-    for i in \${ALLOWED_ENV}; do
-        E="\${E} \${i}=\${!i}"
-    done
-    log_daemon_msg "Starting \$DESC" \$NAME
-    env - \${E} start-stop-daemon --start -x \$FCGIPROGRAM -p \$PIDFILE \\
-        -c \$FCGIUSER:\$FCGIGROUP -b -m -- -b \$FCGISOCKET
-    log_end_msg 0
-    ;;
-stop)
-    log_daemon_msg "Stopping \$DESC" \$NAME
-    if start-stop-daemon --quiet --stop --oknodo --retry 30 \\
-        --pidfile \$PIDFILE --exec \$FCGIPROGRAM
-    then
-        rm -f \$PIDFILE
-        log_end_msg 0
-    else
-        log_end_msg 1
-    fi
-    ;;
-restart|force-reload)
-    \$0 stop
-    sleep 1
-    \$0 start
-    ;;
-*)
-    echo "Usage: \$0 {start|stop|restart|force-reload}" >&2
-    exit 1
-    ;;
-esac
-exit 0
-END
-    chmod 755 /etc/init.d/php-cgi
-    mkdir -p /var/run/www
-    chown www-data:www-data /var/run/www
-
+    check_install php5 php5-fpm php5-mysql php5-gd php5-curl php5-mcrypt
     cat > /etc/nginx/fastcgi_php <<END
 location ~ \.php$ {
     include /etc/nginx/fastcgi_params;
-
     fastcgi_index index.php;
     fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
-    fastcgi_pass unix:/var/run/www/php.sock;
+    fastcgi_pass unix:/var/run/php5-fpm.sock;
 }
 END
-    update-rc.d php-cgi defaults
-    invoke-rc.d php-cgi start
+    update-rc.d php-fpm defaults
+    invoke-rc.d php-fpm start
   }
 
 function install_syslogd {
@@ -814,17 +737,6 @@ function remove_unneeded {
 
 
 function update {
-cp	/etc/apt/sources.list /etc/apt/sources.list.backup
-cat > /etc/apt/sources.list <<END
-deb http://mirror.peer1.net/debian/ squeeze main
-deb-src http://mirror.peer1.net/debian/ squeeze main
-deb http://mirror.peer1.net/debian/ squeeze-updates main
-deb-src http://mirror.peer1.net/debian/ squeeze-updates main
-deb http://mirror.peer1.net/debian-security/ squeeze/updates main
-deb-src http://mirror.peer1.net/debian-security/ squeeze/updates main
-deb http://nginx.org/packages/debian/ squeeze nginx
-deb-src http://nginx.org/packages/debian/ squeeze nginx
-END
     apt-get -q -y update
 	apt-get -y install libc6 perl libdb2 debconf
 	apt-get -y install apt apt-utils dselect dpkg
@@ -1082,6 +994,7 @@ END
 sed -i "/exit 0/idanted -f /etc/dnate.conf &" /etc/rc.local >> /etc/rc.local
 }
 
+
 # update time
 
  function install_uptime {
@@ -1337,6 +1250,23 @@ END
 	invoke-rc.d nginx restart
 	;;
 
+
+vhost)
+	cat > /etc/php5/fpm/pool.d/date.conf <<END
+[www]
+user = www-data
+group = www-data
+listen = /var/run/php5-fpm.sock
+listen.owner = www-data
+listen.group = www-data
+pm = dynamic
+pm.max_children = 5
+pm.start_servers = 2
+pm.min_spare_servers = 1
+pm.max_spare_servers = 3
+chdir = /
+END
+	;;
 ###start osiris ###
 proftpd)
     install_proftpd $2
