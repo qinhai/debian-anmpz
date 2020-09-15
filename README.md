@@ -44,20 +44,32 @@ bash dnasp.sh sshport 22022 #更改ssh端口号22022，建议更改10000以上�
 bash dnasp.sh eaccelerator # 安装php加速器，建议256m内存以上vps才安装
 
 增加命令：(2012-05-21)
+
 bash dnasp.sh snmp #安装snmp支持，方便远程监控
+
 bash dnasp.sh proftpd youdomain #安装proftpd,支持FTP上传；youdomain为WEB管理FTP用
+
 bash dnasp.sh dnate IP port #安装Sockets 5代理
+
 bash dnasp.sh status domain #安装nginx状态监控
+
 bash dnasp.sh phost youdomain IP #安装nginx反向代理
+
 bash dnasp.sh safephp #禁用php危险函数
+
 bash dnasp.sh upotime #更新服务器时间源。
 
 自用命令，可选安装：
 
  
 bash dnasp.sh change_id id domain.com #更改目录权限 ID为sqlite映射的ID domain.com是绑定的域名。
+
 bash dnasp.sh varnish #安装varnish缓存；
+
 bash dnasp.sh akcms domain #安装akcms；意义不大，akcms自带在线安装。
+
 bash dnasp.sh punbb domain #安装punbb；自用，已带中文、code、附件等插件。论坛小巧，受众不大。
+
 bash dnasp.sh wiki domain #安装mediawiki；自用，更换了皮肤，安装了常用插件。受众也不大，据说收录没有hdwiki好
-bash dnasp.sh pmwiki domain #安装p,wiki;轻量级wiki程序，更适合内部存储用。
+
+bash dnasp.sh pmwiki domain #安装pmwiki;轻量级wiki程序，更适合内部存储用。
